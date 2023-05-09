@@ -72,3 +72,13 @@ venv.bak/
 
 # Cython debug symbols
 cython_debug/
+
+# Data and checkpoint folders
+./dataset
+!./dataset/.keep
+
+# Pycharm configs
+.idea
+
+# Outputs
+./outputs
