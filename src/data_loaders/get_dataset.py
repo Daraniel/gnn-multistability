@@ -1,10 +1,8 @@
 from pathlib import Path
-from typing import Union, Dict, Tuple
+from typing import Union, Dict
 
-import numpy as np
 from ogb.linkproppred import PygLinkPropPredDataset
 from ogb.nodeproppred import NodePropPredDataset
-from torch import Tensor
 from torch_geometric.data import Dataset
 from torch_geometric.datasets import TUDataset
 
@@ -35,7 +33,7 @@ def get_dataset(dataset_name: str, dataset_root: Union[str, Path]) -> Dict[str, 
     :param dataset_root: root folder of the datasets
     :return: dataset object
     """
-    dataset_name = dataset_name.lower()
+    dataset_name = dataset_name.lower().replace('-', '_')
     if dataset_name not in DATASETS.keys():
         raise DataWorkflowException(f"Dataset {dataset_name} is not supported")
     dataset = DATASETS[dataset_name](dataset_root)
@@ -50,7 +48,7 @@ def split_dataset(dataset) -> Dict[str, Dataset]:
     if isinstance(dataset, TUDataset):
         return tu.split_dataset(dataset)
     elif isinstance(dataset, NodePropPredDataset) or isinstance(dataset, PygLinkPropPredDataset):
-        raise NotImplementedError("ogb is not implemented yet")
+        raise NotImplementedError("ogb is not implemented yet")  # TODO: implement
         # return ogb.split_dataset(dataset)
     else:
         raise DataWorkflowException(f"Dataset type {type(dataset)} is not supported")

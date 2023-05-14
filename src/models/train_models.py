@@ -1,25 +1,119 @@
 # based on https://github.com/mklabunde/gnn-prediction-instability/blob/main/src/training/node.py
+#  and https://github.com/mklabunde/gnn-prediction-instability/blob/main/setup.py
+
+import json
 import logging
 import os
+import pickle
+import shutil
 import time
 from pathlib import Path
-from typing import Dict, Tuple, Iterator, Union, Optional
+from typing import Dict, Tuple, Iterator, Union, Optional, List
 
 import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.backends.cudnn
-import torch.nn.functional as F
-import torch_geometric.utils
 from omegaconf import DictConfig
+from torch.nn import functional as F
 from torch_geometric.data import Dataset
+from torch_geometric.loader import DataLoader
+
+from models.gnn_models import get_model
 
 log = logging.getLogger(__name__)
 
 
-def train_graph_classifier(cfg: DictConfig, train_dataset: Dataset, valid_dataset: Dataset, test_dataset: Dataset,
-                           model_class: torch.nn.Module.__class__, init_seed: int, train_seed: int) \
-        -> Tuple[torch.nn.Module, Dict[str, float]]:
+def train_models(cfg, activations_root, predictions_dir, dataset):
+    """
+    trains models with the given configuration on the given dataset and save their results to the predictions_dir
+    :param cfg: project configuration
+    :param activations_root: path to save the activations
+    :param predictions_dir: path to save the predictions
+    :param dataset: dataset to train on
+    """
+    log.info("Training model")
+
+    predictions: List[torch.Tensor] = []
+    outputs_test: List[torch.Tensor] = []
+    logits_test: List[torch.Tensor] = []
+    evals: List[Dict[str, float]] = []
+    seed: int = cfg.seed
+    for i in range(cfg.n_repeat):
+        current_seed = seed + i
+        init_seed = current_seed if not cfg.keep_init_seed_constant else seed
+        if cfg.keep_train_seed_constant:
+            log.info(f"Training model {i + 1} out of {cfg.n_repeat} with seed {seed} (init_seed={init_seed}).")
+            model, eval_results = train_graph_classifier_model(cfg, dataset['train'], dataset['valid'], dataset['test'],
+                                                               init_seed=init_seed, train_seed=seed)
+        else:
+            log.info(f"Training model {i + 1} out of {cfg.n_repeat} with seed {current_seed}.")
+            model, eval_results = train_graph_classifier_model(cfg, dataset['train'], dataset['valid'], dataset['test'],
+                                                               init_seed=init_seed, train_seed=current_seed)
+        evals.append(eval_results)
+
+        # After training, save the activations of a model
+        save_dir = os.path.join(activations_root, str(current_seed))
+
+        os.makedirs(save_dir, exist_ok=False)
+        # TODO: check and update if needed
+        # if cfg.cka.use_masks:  # no need to save activations if they are not used later
+        #     log.info("Saving model activations to %s", save_dir)
+        #     with torch.no_grad():
+        #         model.eval()
+        #         assert callable(model.activations)
+        #         act = model.activations(dataset['test'])
+        #         for key, acts in act.items():
+        #             save_path = os.path.join(save_dir, key + ".pt")
+        #             torch.save(acts, save_path)
+
+        log.info("Saving predictions")
+        with torch.no_grad():
+            # for dataset_type in ['train', 'valid', 'test']: # todo: include other datasets
+            for dataset_type in ['test']:
+                temp_preds = None
+                temp_outputs = None
+                dataloader = DataLoader(dataset[dataset_type], batch_size=dataset['test'].__len__(), shuffle=False)
+                # noinspection PyTypeChecker
+                for data in dataloader:
+                    data = data.to(next(model.parameters()).device)
+                    output = model(data)
+                    preds = output.argmax(dim=-1)
+                    outputs_test.append(
+                        F.softmax(output, dim=-1).cpu().detach()
+                    )
+                    predictions.append(preds.cpu().detach())
+                    logits_test.append(output.cpu().detach())
+                    break  # TODO: update to support dataloader that have more than one batch (are not full batch)
+
+        # Backup the trained weights currently in the working directory as checkpoint.pt
+        checkpoint_dir = os.path.join(os.getcwd(), str(current_seed))
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        if Path(os.getcwd(), "checkpoint.pt").exists():
+            shutil.move(
+                Path(os.getcwd(), "checkpoint.pt"),
+                Path(checkpoint_dir, "checkpoint.pt"),
+            )
+
+    # Some logging and simple heuristic to catch models that are far from optimally trained
+    suboptimal_models = find_suboptimal_models(evals)
+    with open(Path(predictions_dir, "suboptimal_models.pkl"), "wb") as f:
+        pickle.dump(suboptimal_models, f)
+
+    with open(Path(predictions_dir, "evals.json"), "w") as f:
+        json.dump(evals, f)
+    with open(Path(predictions_dir, "logits_test.json"), "wb") as f:
+        pickle.dump(logits_test, f)
+    with open(Path(predictions_dir, "outputs_test.json"), "wb") as f:
+        pickle.dump(outputs_test, f)
+    with open(Path(predictions_dir, "predictions.json"), "wb") as f:
+        pickle.dump(predictions, f)
+
+    log.info("Finished training.")
+
+
+def train_graph_classifier_model(cfg: DictConfig, train_dataset: Dataset, valid_dataset: Dataset, test_dataset: Dataset,
+                                 init_seed: int, train_seed: int) -> Tuple[torch.nn.Module, Dict[str, float]]:
     # Seeds are set later for training and initialization individually
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = False
@@ -34,10 +128,7 @@ def train_graph_classifier(cfg: DictConfig, train_dataset: Dataset, valid_datase
     log.info(f"Initializing model with seed={init_seed}")
     pl.seed_everything(init_seed)
 
-    model = model_class(in_dim=train_dataset.num_features,
-                        num_layers=cfg.model.n_layers,
-                        hidden_dim=cfg.model.hidden_dim,
-                        out_dim=train_dataset.num_classes)
+    model = get_model(cfg=cfg, in_dim=train_dataset.num_features, out_dim=train_dataset.num_classes)
 
     log.info(f"Model has {count_parameters(model)} parameters ({count_parameters(model, trainable=True)} trainable).")
 
@@ -54,20 +145,21 @@ def train_graph_classifier(cfg: DictConfig, train_dataset: Dataset, valid_datase
     n_epochs = cfg.n_epochs
 
     model.to(device)
-    train_dataset = train_dataset.data.to(str(device))
-    valid_dataset = valid_dataset.data.to(str(device))
-    test_dataset = test_dataset.data.to(str(device))
+
+    train_dataloader = DataLoader(train_dataset, batch_size=train_dataset.__len__(), shuffle=False)
+    valid_dataloader = DataLoader(valid_dataset, batch_size=valid_dataset.__len__(), shuffle=False)
+    test_dataloader = DataLoader(test_dataset, batch_size=test_dataset.__len__(), shuffle=False)
 
     start = time.perf_counter()
     for e in range(n_epochs):
-        train_loss = train(model, train_dataset, optimizer, criterion)
-        eval_results = evaluate(model, train_dataset, valid_dataset, test_dataset, criterion=criterion)
+        train_loss = train_model_once(model, train_dataloader, optimizer, criterion)
+        eval_results = evaluate(model, train_dataloader, valid_dataloader, test_dataloader, criterion=criterion)
         log.info(
             f"time={time.perf_counter() - start:.2f} epoch={e}: "
             f"{train_loss=:.3f}, train_acc={eval_results['train_acc']:.2f}, "
-            f"val_loss={eval_results['val_loss']:.3f}, val_acc={eval_results['val_acc']:.2f}"
+            f"valid_loss={eval_results['valid_loss']:.3f}, valid_acc={eval_results['valid_acc']:.2f}"
         )
-        early_stopper(eval_results["val_loss"], model)
+        early_stopper(eval_results["valid_loss"], model)
         if early_stopper.early_stop and cfg.early_stopping:
             log.info(
                 "Stopping training early because validation loss has not decreased"
@@ -79,44 +171,31 @@ def train_graph_classifier(cfg: DictConfig, train_dataset: Dataset, valid_datase
     log.info("Reverting to model with best val loss")
     if Path(early_stopper.path).exists():
         model.load_state_dict(torch.load(early_stopper.path))
-    eval_results = evaluate(model, train_dataset, valid_dataset, test_dataset, criterion=criterion)
+    eval_results = evaluate(model, train_dataloader, valid_dataloader, test_dataloader, criterion=criterion)
     log.info(
         f"train_loss={eval_results['train_loss']:.3f}, train_acc={eval_results['train_acc']:.2f}, "
-        f"val_loss={eval_results['val_loss']:.3f}, val_acc={eval_results['val_acc']:.2f}, "
+        f"valid_loss={eval_results['valid_loss']:.3f}, valid_acc={eval_results['valid_acc']:.2f}, "
         f"test_loss={eval_results['test_loss']:.3f}, test_acc={eval_results['test_acc']:.2f}"
     )
 
     return model, eval_results
 
 
-def train(model: torch.nn.Module, train_dataset: Dataset, optimizer: torch.optim.Optimizer, criterion: torch.nn.Module):
+def train_model_once(model: torch.nn.Module, train_loader: DataLoader, optimizer: torch.optim.Optimizer,
+                     criterion: torch.nn.Module):
     model.train()
-    train_loader = torch_geometric.loader.DataLoader(train_dataset, batch_size=5, shuffle=False)
-
     total_loss = 0
+    # noinspection PyTypeChecker
     for data in train_loader:
-        # out = model(train_dataset)
-        # loss = criterion(out, train_dataset.y.view(-1))
-        # loss = F.nll_loss(out, train_dataset.y.view(-1))
+        data = data.to(next(model.parameters()).device)
         optimizer.zero_grad()
         out = model(data)
-        loss = F.nll_loss(out, data.y.view(-1))
+        loss = criterion(out, data.y.view(-1))
         optimizer.zero_grad()
         loss.backward()
         total_loss += loss.item() * num_graphs(data)
         optimizer.step()
-
-    # return loss.item()
     return total_loss / len(train_loader.dataset)
-
-    # train_loader = torch_geometric.data.DataLoader(train_dataset, batch_size=50, shuffle=False)
-    # for data in train_loader:
-    #     out = model(data)
-    #     loss = criterion(out, data.y)
-    #     optimizer.zero_grad()
-    #     loss.backward()
-    #     optimizer.step()
-    #     return loss.item()
 
 
 def num_graphs(data):
@@ -126,22 +205,65 @@ def num_graphs(data):
         return data.x.size(0)
 
 
-@torch.no_grad()
-def evaluate(model: torch.nn.Module, train_dataset: Optional[Dataset] = None, valid_dataset: Optional[Dataset] = None,
-             test_dataset: Optional[Dataset] = None, criterion: Optional[torch.nn.Module] = None, ) -> Dict[str, float]:
-    model.eval()
+def find_suboptimal_models(evals: List[Dict[str, float]], allowed_deviation: int = 2) \
+        -> Dict[str, List[Tuple[int, float]]]:
     results = {}
-    for key, dataset in zip(["train", "valid", "test"], [train_dataset, valid_dataset, test_dataset]):
-        if dataset is not None:
-            out = model(dataset)
-            y_pred = out.argmax(dim=-1, keepdim=True)
-            results[f"{key}_acc"] = torch_geometric.utils.metric.accuracy(
-                y_pred.view(-1), dataset.y
-            )
-            if criterion is not None:
-                loss = criterion(out, dataset.y).item()
-                results[f"{key}_loss"] = loss
+    for split in ["train", "valid", "test"]:
+        split_results = [r[f"{split}_acc"] for r in evals]
+        log.info(
+            "Mean %s accuracy=%.3f, Std=%.3f",
+            split,
+            np.mean(split_results),
+            np.std(split_results),
+        )
+        suspicious_models: List[Tuple[int, float]] = []
+        for i, acc in enumerate(split_results):
+            if np.abs(acc - np.mean(split_results)) > allowed_deviation * np.std(
+                    split_results
+            ):
+                suspicious_models.append((i, acc))
+        log.info(
+            "Suspicious models (large deviation from mean acc on %s): %s",
+            split,
+            str(suspicious_models),
+        )
+        results[split] = suspicious_models
     return results
+
+
+@torch.no_grad()
+def evaluate(model: torch.nn.Module, train_dataloader: Optional[DataLoader] = None,
+             valid_dataloader: Optional[DataLoader] = None, test_dataloader: Optional[DataLoader] = None,
+             criterion: Optional[torch.nn.Module] = None, ) -> Dict[str, float]:
+    model.eval()
+    device = next(model.parameters()).device
+    results = {}
+    for key, dataloader in zip(["train", "valid", "test"], [train_dataloader, valid_dataloader, test_dataloader]):
+        if dataloader is not None:
+            for data in dataloader:
+                data = data.to(device)
+                out = model(data)
+                y_pred = out.argmax(dim=-1, keepdim=True)
+                results[f"{key}_acc"] = accuracy(y_pred.view(-1), data.y)
+                if criterion is not None:
+                    loss = criterion(out, data.y).item()
+                    results[f"{key}_loss"] = loss
+                break  # TODO: update to support dataloader that have more than one batch (are not full batch)
+    return results
+
+
+# based on https://pytorch-geometric.readthedocs.io/en/1.7.2/_modules/torch_geometric/utils/metric.html
+def accuracy(pred: torch.Tensor, target: torch.Tensor):
+    """
+    Computes the accuracy of predictions.
+
+    Args:
+        pred (Tensor): The predictions.
+        target (Tensor): The targets.
+
+    :rtype: float
+    """
+    return (pred == target).sum().item() / target.numel()
 
 
 class EarlyStopping:
@@ -169,18 +291,18 @@ class EarlyStopping:
         self.counter = 0
         self.best_score = None
         self.early_stop = False
-        self.val_loss_min = np.Inf
+        self.valid_loss_min = np.Inf
         self.delta = delta
         self.path = path
         self.trace_func = trace_func
 
-    def __call__(self, val_loss, model):
+    def __call__(self, valid_loss, model):
 
-        score = -val_loss
+        score = -valid_loss
 
         if self.best_score is None:
             self.best_score = score
-            self.save_checkpoint(val_loss, model)
+            self.save_checkpoint(valid_loss, model)
         elif score < self.best_score + self.delta:
             self.counter += 1
             self.trace_func(
@@ -190,17 +312,17 @@ class EarlyStopping:
                 self.early_stop = True
         else:
             self.best_score = score
-            self.save_checkpoint(val_loss, model)
+            self.save_checkpoint(valid_loss, model)
             self.counter = 0
 
-    def save_checkpoint(self, val_loss, model):
+    def save_checkpoint(self, valid_loss, model):
         """Saves model when validation loss decrease."""
         if self.verbose:
             self.trace_func(
-                f"Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ..."
+                f"Validation loss decreased ({self.valid_loss_min:.6f} --> {valid_loss:.6f}).  Saving model ..."
             )
         torch.save(model.state_dict(), self.path)
-        self.val_loss_min = val_loss
+        self.valid_loss_min = valid_loss
 
 
 # based on https://github.com/mklabunde/gnn-prediction-instability/blob/main/src/training/utils.py

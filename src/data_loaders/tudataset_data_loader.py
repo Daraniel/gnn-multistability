@@ -24,22 +24,6 @@ class NormalizedDegree(object):
         return data
 
 
-# based on https://github.com/sw-gong/GNN-Tutorial/blob/master/GNN-tutorial-solution.ipynb
-def print_dataset(dataset):
-    num_nodes = num_edges = 0
-    for data in dataset:
-        num_nodes += data.num_nodes
-        num_edges += data.num_edges
-
-    print('Name', dataset)
-    print('Graphs', len(dataset))
-    print('Nodes', num_nodes / len(dataset))
-    print('Edges', (num_edges // 2) / len(dataset))
-    print('Features', dataset.num_features)
-    print('Classes', dataset.num_classes)
-    print()
-
-
 def get_dataset(dataset_name, dataset_root: Union[str, Path]) -> Dataset:
     """
     get a TUDataset from its name
@@ -49,7 +33,6 @@ def get_dataset(dataset_name, dataset_root: Union[str, Path]) -> Dataset:
     """
     try:
         dataset = TUDataset(dataset_root, name=dataset_name, use_node_attr=False, use_edge_attr=False, cleaned=False)
-        print_dataset(dataset)
         return dataset
     except Exception as e:
         raise DataWorkflowException(f'Failed to get dataset {dataset_name}') from e
