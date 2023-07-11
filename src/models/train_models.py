@@ -56,16 +56,15 @@ def train_models(cfg, activations_root, predictions_dir, dataset):
         save_dir = os.path.join(activations_root, str(current_seed))
 
         os.makedirs(save_dir, exist_ok=False)
-        # TODO: check and update if needed
         # if cfg.cka.use_masks:  # no need to save activations if they are not used later
-        #     log.info("Saving model activations to %s", save_dir)
-        #     with torch.no_grad():
-        #         model.eval()
-        #         assert callable(model.activations)
-        #         act = model.activations(dataset['test'])
-        #         for key, acts in act.items():
-        #             save_path = os.path.join(save_dir, key + ".pt")
-        #             torch.save(acts, save_path)
+        log.info("Saving model activations to %s", save_dir)
+        with torch.no_grad():
+            model.eval()
+            act = model.activations(dataset['test'])
+            for key, acts in act.items():
+                save_path = os.path.join(save_dir, key + ".pt")
+                torch.save(acts, save_path)
+            # dataset['test'].x.to(torch.device("cpu"))
 
         log.info("Saving predictions")
         with torch.no_grad():

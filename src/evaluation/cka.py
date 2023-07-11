@@ -1,15 +1,6 @@
 """Copied from https://github.com/google-research/google-research/blob/master/representation_similarity/Demo.ipynb"""
 
-import itertools
-import math
-import os
-from pathlib import Path
-from typing import List, Union
-
 import numpy as np
-from tqdm import tqdm
-
-from evaluation import experiments
 
 
 def gram_linear(x):
@@ -105,16 +96,15 @@ def cka(gram_x, gram_y, debiased=False):
     return scaled_hsic / (normalization_x * normalization_y)
 
 
-def _debiased_dot_product_similarity_helper(
-    xty, sum_squared_rows_x, sum_squared_rows_y, squared_norm_x, squared_norm_y, n
-):
+def _debiased_dot_product_similarity_helper(xty, sum_squared_rows_x, sum_squared_rows_y, squared_norm_x, squared_norm_y,
+                                            n):
     """Helper for computing debiased dot product similarity (i.e. linear HSIC)."""
     # This formula can be derived by manipulating the unbiased estimator from
     # Song et al. (2007).
     return (
-        xty
-        - n / (n - 2.0) * sum_squared_rows_x.dot(sum_squared_rows_y)
-        + squared_norm_x * squared_norm_y / ((n - 1) * (n - 2))
+            xty
+            - n / (n - 2.0) * sum_squared_rows_x.dot(sum_squared_rows_y)
+            + squared_norm_x * squared_norm_y / ((n - 1) * (n - 2))
     )
 
 
@@ -178,127 +168,3 @@ def feature_space_linear_cka(features_x, features_y, debiased=False):
         )
 
     return dot_product_similarity / (normalization_x * normalization_y)
-
-
-# todo: update
-def pairwise_cka_full(
-    dirnames: List[str],
-    # idx: np.ndarray,
-    cka_dir: Union[str, Path],
-    split_name: str,
-    activations_root: Path,
-    save_to_disk: bool = True,
-) -> List[np.ndarray]:
-    """Compute full CKA matrices for pairs of models (and saves them to disk)
-
-    Args:
-        dirnames (List[str]): List of directories containing activations of different models
-        idx (np.ndarray): indexes the activations so only a subset is used
-        cka_dir (Union[str, Path]): path to a directory where results are saved
-        split_name (str): identifier for used subset (idx)
-        save_to_disk (bool): Whether to save cka matrices to disk. Defaults to True.
-    """
-    cka_matrices = []
-    pair_length: int = 2
-    for seed_pair in itertools.combinations(sorted(dirnames), pair_length):
-        # 1. Extract all filenames related to saved activations and sort them so
-        # plots using them have a fixed structure
-        fnames = experiments.find_activation_fnames(
-            seed_pair, activations_root
-        )
-
-        # 2. Für alle Kombinationen, berechne die CKA Werte und speichere sie ab
-        # Wir indexen die raw activations mit dem data_split für detailierte Ergebnisse
-        cka_values = np.zeros((len(fnames[0]), len(fnames[1])))
-        with tqdm(total=cka_values.size, desc="Computing CKA values") as t:
-            for i, fname1 in enumerate(fnames[0]):
-                for j, fname2 in enumerate(fnames[1]):
-                    x = experiments.load_representation(
-                        os.path.join(os.getcwd(), seed_pair[0], f"{fname1}.pt")
-                    # )[idx]
-                    )
-                    y = experiments.load_representation(
-                        os.path.join(os.getcwd(), seed_pair[1], f"{fname2}.pt")
-                    # )[idx]
-                    )
-                    cka_values[i, j] = feature_space_linear_cka(x, y)
-                    t.update()
-        if save_to_disk:
-            np.save(
-                str(Path(cka_dir, f"cka_{split_name}_{'_'.join(seed_pair)}.npy")),
-                cka_values,
-            )
-        cka_matrices.append(cka_values)
-    return cka_matrices
-
-
-# todo: update
-def pairwise_cka_diag(
-    dirnames: List[str],
-    # idx: np.ndarray,
-    cka_dir: Union[str, Path],
-    split_name: str,
-    activations_root: Path,
-    save_to_disk: bool = True,
-) -> List[np.ndarray]:
-    cka_matrices = []
-    pair_length: int = 2
-    with tqdm(
-        desc="Pairwise CKA computation (diag)",
-        total=math.comb(len(dirnames), pair_length),
-    ) as t:
-        for seed_pair in itertools.combinations(sorted(dirnames), pair_length):
-            # 1. Extract all filenames related to saved activations and sort them so
-            # plots using them have a fixed structure
-            fnames = experiments.find_activation_fnames(
-                seed_pair, activations_root
-            )
-
-            # 2. Only activations of corresponding layer are compared via CKA
-            # Empty cells are encoded as -inf
-            if len(fnames[0]) != len(fnames[1]):
-                raise ValueError(
-                    "Models have different depth. No clear correspondence between layers!"
-                )
-            cka_values = np.ones((len(fnames[0]), len(fnames[1]))) * -np.inf
-            for i, (fname1, fname2) in enumerate(zip(fnames[0], fnames[1])):
-                x = experiments.load_representation(
-                    os.path.join(activations_root, seed_pair[0], f"{fname1}.pt")
-                # )[idx]
-                )
-                y = experiments.load_representation(
-                    os.path.join(activations_root, seed_pair[1], f"{fname2}.pt")
-                # )[idx]
-                )
-                cka_values[i, i] = feature_space_linear_cka(x, y)
-            if save_to_disk:
-                np.save(
-                    str(Path(cka_dir, f"cka_{split_name}_{'_'.join(seed_pair)}.npy")),
-                    cka_values,
-                )
-            cka_matrices.append(cka_values)
-            t.update()
-    return cka_matrices
-
-
-# todo: update
-def cka_matrix(
-    dirnames: List[str],
-    # idx: np.ndarray,
-    cka_dir: Union[str, Path],
-    split_name: str,
-    mode: str,
-    save_to_disk: bool,
-    activations_root: Path,
-) -> List[np.ndarray]:
-    if mode == "full":
-        ckas = pairwise_cka_full(
-            dirnames, cka_dir, split_name, activations_root, save_to_disk
-        )
-    elif mode == "diag":
-        ckas = pairwise_cka_diag(
-            dirnames, cka_dir, split_name, activations_root, save_to_disk,
-        )
-    else:
-        raise ValueError(f"Unknown CKA mode: {mode}")
-    return ckas

@@ -4,7 +4,7 @@ import logging
 import os
 import pickle
 from pathlib import Path
-from typing import List, Any, Tuple, Dict
+from typing import List, Any, Tuple, Dict, Callable
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,20 +15,28 @@ import torch_geometric
 from omegaconf import DictConfig
 from scipy.stats import entropy
 
+import evaluation.helper_functions
 import evaluation.predictions
 import plots
+from evaluation import feature_space_linear_cka
+from evaluation.cca import get_cca
+from evaluation.procrustes import get_procrustes
+from evaluation.rashomon_capacity import compute_capacity
+from evaluation.rsa import get_rsa_cos, get_rsa_corr, get_rsa_tau_a, get_rsa_rho_a
 
 log = logging.getLogger(__name__)
 
 
-def evaluate_models(cfg: DictConfig, dataset: Dict[str, torch_geometric.data.Dataset], figures_dir: Path,
-                    predictions_dir: Path) -> None:
+def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_geometric.data.Dataset],
+                    figures_dir: Path, predictions_dir: Path, cka_dir: Path) -> None:
     """
     evaluate the specified model
     :param cfg: project configuration
     :param dataset: dataset
+    :param activations_root: path to the saved activations
     :param figures_dir: location of the figures
     :param predictions_dir: location of the predictions
+    :param cka_dir: location to store the cka analysis
     """
     log.info("Evaluating models")
 
@@ -53,15 +61,110 @@ def evaluate_models(cfg: DictConfig, dataset: Dict[str, torch_geometric.data.Dat
         evals=evals,
     )
 
-    # todo: include other datasets
-    # todo: fix bug and uncomment
-    # cka_experiments(
+    # CKA experiment
+    run_experiments_with_function(
+        cfg=cfg,
+        figures_dir=figures_dir,
+        predictions_dir=predictions_dir,
+        cka_dir=cka_dir,
+        activations_root=activations_root,
+        function_to_use=feature_space_linear_cka,
+        calculating_function_name="CKA"
+    )
+
+    # CCA experiment
+    run_experiments_with_function(
+        cfg=cfg,
+        figures_dir=figures_dir,
+        predictions_dir=predictions_dir,
+        cka_dir=cka_dir,
+        activations_root=activations_root,
+        function_to_use=get_cca,
+        calculating_function_name="CCA"
+    )
+
+    # procrustes experiment
+    run_experiments_with_function(
+        cfg=cfg,
+        figures_dir=figures_dir,
+        predictions_dir=predictions_dir,
+        cka_dir=cka_dir,
+        activations_root=activations_root,
+        function_to_use=get_procrustes,
+        calculating_function_name="procrustes"
+    )
+
+    # RSA experiments
+    run_experiments_with_function(
+        cfg=cfg,
+        figures_dir=figures_dir,
+        predictions_dir=predictions_dir,
+        cka_dir=cka_dir,
+        activations_root=activations_root,
+        function_to_use=get_rsa_cos,
+        calculating_function_name="rsa_cos"
+    )
+    run_experiments_with_function(
+        cfg=cfg,
+        figures_dir=figures_dir,
+        predictions_dir=predictions_dir,
+        cka_dir=cka_dir,
+        activations_root=activations_root,
+        function_to_use=get_rsa_corr,
+        calculating_function_name="rsa_corr"
+    )
+    run_experiments_with_function(
+        cfg=cfg,
+        figures_dir=figures_dir,
+        predictions_dir=predictions_dir,
+        cka_dir=cka_dir,
+        activations_root=activations_root,
+        function_to_use=get_rsa_tau_a,
+        calculating_function_name="rsa_tau_a"
+    )
+    run_experiments_with_function(
+        cfg=cfg,
+        figures_dir=figures_dir,
+        predictions_dir=predictions_dir,
+        cka_dir=cka_dir,
+        activations_root=activations_root,
+        function_to_use=get_rsa_rho_a,
+        calculating_function_name="rsa_rho_a"
+    )
+
+    # Rashomon capacity experiment
+    rashomon_capacity = compute_capacity(np.array([x.numpy() for x in outputs_test]), epsilon=1e-12)
+
+    if figures_dir is not None and figures_dir.is_dir():
+        figurepath = Path(figures_dir, "rashomon_capacity.jpg")
+
+    plots.node_stability.save_pairwise_instability_distribution(
+        rashomon_capacity, savepath=figurepath
+    )
+    np.save(str(Path(predictions_dir, "rashomon_capacity.npy")), rashomon_capacity)
+    log.info(f"rashomon_capacity: {rashomon_capacity}")
+
+    # todo: cleanup/remove
+    # compute_capacity2(np.array([x.numpy() for x in outputs_test]))
+    # compute_capacity(np.array([x.numpy() for x in outputs_test]))
+    #
+    # rashomon_capacity = compute_capacity(np.array([x.numpy() for x in logits_test]))
+    #
+    # for channel in range(1):
+    #     rashomon_capacity = blahut_arimoto(np.array([x[:, 0].numpy() for x in logits_test]))[0]
+    #
+    #
+    # run_experiments_with_function(
     #     cfg=cfg,
     #     figures_dir=figures_dir,
     #     predictions_dir=predictions_dir,
     #     cka_dir=cka_dir,
     #     activations_root=activations_root,
+    #     function_to_use=blahut_arimoto,
+    #     calculating_function_name="rashomon_capacity"
     # )
+    #
+    # # a = blahut_arimoto(predictions)
 
     log.info("Finished evaluating models")
 
@@ -119,6 +222,8 @@ def classification_stability_experiments(cfg: DictConfig, predictions_dir: Path,
         predictions, test_dataset.num_classes  # type:ignore
     )
     np.save(str(nodewise_distr_path), distr)
+    # log.info(f"nodewise_distr: {distr}")
+
     # for split_name, idx in split_idx.items():
     for split_name in ['test']:
         # filtered_preds = [p[idx] for p in predictions]
@@ -165,10 +270,11 @@ def classification_stability_experiments(cfg: DictConfig, predictions_dir: Path,
         Path(figures_dir, "entropy_scatter.jpg"),
     )
 
+    # main version
     # Compare the output and prediction entropy to node properties
-    test_dataset[0].edge_index = torch_geometric.utils.to_undirected(  # type:ignore
-        test_dataset[0].edge_index  # type:ignore
-    )
+    # test_dataset[0].edge_index = torch_geometric.utils.to_undirected(  # type:ignore
+    #     test_dataset[0].edge_index  # type:ignore
+    # )
 
     # g = torch_geometric.utils.to_networkx(test_dataset[0])
     # todo: maybe update?
@@ -179,30 +285,36 @@ def classification_stability_experiments(cfg: DictConfig, predictions_dir: Path,
     #  (like taking max of values?)
     # graphs = [torch_geometric.utils.to_networkx(test_dataset[i]) for i in range(len(test_dataset))]
     # degrees = np.asarray([nx.degree(g) for g in graphs])
+    # degrees = np.asarray([max(d for _, d in nx.degree(g)) for g in graphs])  # get max degree (is it correct?)
+
+    # my version
+    # Compare the output and prediction entropy to node properties
+    degrees = np.asarray([test_dataset[i].num_edges for i in range(len(test_dataset))])
 
     # # todo: fix bug and restore (bug is related to difference in shape of  degrees and predictions_entropy
-    # plots.node_stability.save_scatter_correlation(
-    #     degrees,
-    #     predictions_entropy,
-    #     "Degrees",
-    #     "Prediction Entropy",
-    #     "Degree - Prediction Entropy: %s",
-    #     Path(figures_dir, "degree_predentropy.jpg"),
-    # )
-    # plots.node_stability.save_scatter_correlation(
-    #     degrees,
-    #     avg_output_entropy,
-    #     "Degrees",
-    #     "Avg Model Output Entropy",
-    #     "Degree - Avg Output Entropy: %s",
-    #     Path(figures_dir, "degree_outputentropy.jpg"),
-    # )
+    plots.node_stability.save_scatter_correlation(
+        degrees,
+        predictions_entropy,
+        "Degrees",
+        "Prediction Entropy",
+        "Degree - Prediction Entropy: %s",
+        Path(figures_dir, "degree_predentropy.jpg"),
+    )
+    plots.node_stability.save_scatter_correlation(
+        degrees,
+        avg_output_entropy,
+        "Degrees",
+        "Avg Model Output Entropy",
+        "Degree - Avg Output Entropy: %s",
+        Path(figures_dir, "degree_outputentropy.jpg"),
+    )
 
     # Compare models pairwise w.r.t. identical predictions
     pi_distr = evaluation.predictions.pairwise_instability(
         preds=probas_test.argmax(axis=2), figurepath=figures_dir
     )
     np.save(str(Path(predictions_dir, "pi_distr.npy")), pi_distr)
+    log.info(f"pi_distr: {pi_distr}")
 
     norm_pi_distr = evaluation.predictions.normalized_pairwise_instability(
         preds=probas_test.argmax(axis=2),
@@ -210,16 +322,19 @@ def classification_stability_experiments(cfg: DictConfig, predictions_dir: Path,
         figurepath=figures_dir,
     )
     np.save(str(Path(predictions_dir, "normpi_distr.npy")), norm_pi_distr)
+    log.info(f"normpi_distr: {norm_pi_distr}")
 
     symkl_distr = evaluation.predictions.pairwise_sym_kldiv(
         outputs=logits_test, figurepath=figures_dir,
     )
     np.save(str(Path(predictions_dir, "symkl_distr.npy")), symkl_distr)
+    log.info(f"symkl_distr: {symkl_distr}")
 
     l1_distr = evaluation.predictions.pairwise_l1loss(
         probas_test, figurepath=figures_dir
     )
     np.save(str(Path(predictions_dir, "l1_distr.npy")), l1_distr)
+    log.info(f"l1_distr: {l1_distr}")
 
     (
         true_diffs,
@@ -230,26 +345,24 @@ def classification_stability_experiments(cfg: DictConfig, predictions_dir: Path,
     )
     np.save(str(Path(predictions_dir, "true_pi_distr.npy")), true_diffs)
     np.save(str(Path(predictions_dir, "false_pi_distr.npy")), false_diffs)
+    log.info(f"true_pi_distr: {true_diffs}")
+    log.info(f"false_pi_distr: {false_diffs}")
 
 
-def cka_experiments(
-        cfg: DictConfig,
-        figures_dir: Path,
-        predictions_dir: Path,
-        cka_dir: Path,
-        activations_root: Path,
-):
-    log.info("Starting pairwise CKA computation.")
+# todo: cleanup
+def run_experiments_with_function(cfg: DictConfig, figures_dir: Path, predictions_dir: Path, cka_dir: Path,
+                                  activations_root: Path, function_to_use: Callable, calculating_function_name: str, ):
+    log.info(f"Starting pairwise {calculating_function_name} computation.")
     # Jetzt startet die Analyse auf allen paaren der trainierten Modelle
     accuracy_records: List[Tuple[str, str, str, float]] = []
     # todo: update
     # for split_name, idx in split_idx.items():
     for split_name in ['test']:
         if split_name not in cfg.cka.use_masks:
-            log.info("Skipping CKA analysis for %s", split_name)
+            log.info(f"Skipping {calculating_function_name} analysis for %s", split_name)
             continue
 
-        log.info("Starting CKA analysis for %s", split_name)
+        log.info(f"Starting {calculating_function_name} analysis for %s", split_name)
         # idx = idx.numpy() # todo: maybe update?
         pair_length = 2
         # Every model has its own subdirectory, but there are also other output
@@ -266,7 +379,7 @@ def cka_experiments(
             ],
         )
 
-        cka_matrices = evaluation.cka_matrix(
+        cka_matrices = evaluation.helper_functions.cka_matrix(
             dirnames=dirnames,
             # idx=idx,
             cka_dir=cka_dir,
@@ -274,21 +387,24 @@ def cka_experiments(
             mode=cfg.cka.mode,
             save_to_disk=cfg.cka.save_to_disk,
             activations_root=activations_root,
+            function_to_use=function_to_use,
+            calculating_function_name=calculating_function_name,
         )
 
         # ------------------------------------------------------------------------------
-        log.info("Finished CKA computation. Preparing output for %s.", split_name)
+        log.info(f"Finished {calculating_function_name} computation. Preparing output for %s.", split_name)
 
         # Jetzt müssen die Ergbenisse der Paare noch aggregiert werden
         cka_matrices = np.array(cka_matrices)
-        np.save(str(cka_dir / f"ckas_{split_name}.npy"), cka_matrices)
+        np.save(str(cka_dir / f"{calculating_function_name}s_{split_name}.npy"), cka_matrices)
         cka_mean = np.mean(cka_matrices, axis=0)
         cka_std = np.std(cka_matrices, axis=0)
-        log.debug("CKA matrices shape: %s", (cka_matrices.shape,))
-        log.debug("Mean CKA shape: %s", (cka_mean.shape,))
+        log.debug(f"{calculating_function_name} matrices shape: %s", (cka_matrices.shape,))
+        log.debug(f"Mean {calculating_function_name} shape: %s", (cka_mean.shape,))
 
         plots.save_cka_diagonal(
-            cka_matrices, Path(figures_dir, f"cka_diag_{split_name}.pdf"),
+            cka_matrices, Path(figures_dir, f"{calculating_function_name}_diag_{split_name}.pdf"),
+            calculating_function_name=calculating_function_name
         )
 
         if cfg.cka.mode == "full":

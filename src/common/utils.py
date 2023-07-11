@@ -12,19 +12,19 @@ from data_loaders.get_dataset import get_dataset
 
 
 def setup_project(cfg: DictConfig, activations_root: Optional[Union[str, Path]], logger: logging.Logger,
-                  make_directories: bool = True) -> Tuple[Union[str, Any], Dict[str, Dataset], Path, Path]:
+                  make_directories: bool = True) -> Tuple[Union[str, Any], Dict[str, Dataset], Path, Path, Path]:
     """
     set up the project and handle the directories
     :param cfg: project configuration
     :param activations_root: path to store the activations
     :param logger: project logger
     :param make_directories: whether to create the directories or not
-    :return: tuple of activations, dataset, figures, and predictions directories
+    :return: tuple of activations, dataset, figures, predictions, and cka_dir directories
     """
     logger.info("Configuring project")
     print(OmegaConf.to_yaml(cfg))
-    activations_root, dataset_dir, figures_dir, predictions_dir = get_directories(cfg, activations_root,
-                                                                                  make_directories)
+    activations_root, dataset_dir, figures_dir, predictions_dir, cka_dir = get_directories(cfg, activations_root,
+                                                                                           make_directories)
     fix_seeds(cfg.datasplit_seed)
     # TODO: update
 
@@ -49,17 +49,17 @@ def setup_project(cfg: DictConfig, activations_root: Optional[Union[str, Path]],
     logger.info("Loading dataset")
     dataset = get_dataset(dataset_name=cfg.dataset.name, dataset_root=dataset_dir)
     logger.info("Dataset loaded and configuration completed")
-    return activations_root, dataset, figures_dir, predictions_dir
+    return activations_root, dataset, figures_dir, predictions_dir, cka_dir
 
 
 def get_directories(cfg: DictConfig, activations_root: Optional[Union[str, Path]], make_directories: bool) \
-        -> Tuple[Union[str, Path], Path, Path, Path]:
+        -> Tuple[Union[str, Path], Path, Path, Path, Path]:
     """
     convert the directories to represent the directory in the hydra runtime environment and create then if needed
     :param cfg: project configuration
     :param activations_root: path to store the activations
     :param make_directories: whether to create the directories or not
-    :return: tuple of activations, dataset, figures, and predictions directories
+    :return: tuple of activations, dataset, figures, predictions, and cka_dir directories
     """
     figures_dir = Path(os.getcwd(), "figures")
     predictions_dir = Path(os.getcwd(), "predictions")
@@ -74,7 +74,7 @@ def get_directories(cfg: DictConfig, activations_root: Optional[Union[str, Path]
         os.makedirs(cka_dir)
         if not os.path.exists(dataset_dir):
             os.makedirs(dataset_dir)
-    return activations_root, dataset_dir, figures_dir, predictions_dir
+    return activations_root, dataset_dir, figures_dir, predictions_dir, cka_dir
 
 
 def fix_seeds(seed: int):

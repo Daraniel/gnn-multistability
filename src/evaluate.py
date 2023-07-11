@@ -34,9 +34,9 @@ def main(instance_path: str):
     else:
         activations_root = ''
 
-    activations_root, dataset, figures_dir, predictions_dir = setup_project(cfg, activations_root, log,
-                                                                            make_directories=False)
-    evaluate_models(cfg, dataset, figures_dir, predictions_dir)
+    activations_root, dataset, figures_dir, predictions_dir, cka_dir = setup_project(cfg, activations_root, log,
+                                                                                     make_directories=False)
+    evaluate_models(cfg, activations_root, dataset, figures_dir, predictions_dir, cka_dir)
     log.info("Process finished successfully")
 
 

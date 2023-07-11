@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig
@@ -10,23 +12,41 @@ from torch_geometric.nn import GINConv, global_mean_pool
 class GIN(torch.nn.Module):
     def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float, **kwargs):
         super(GIN, self).__init__()
-        self.conv1 = GINConv(Sequential(
-            Linear(in_dim, hidden_dim),
-            ReLU(),
-            Linear(hidden_dim, hidden_dim),
-            ReLU(),
-            BN(hidden_dim),
+        # self.conv1 = GINConv(ModuleDict(
+        #     {
+        #         "lin1": Linear(in_dim, hidden_dim),
+        #         "act1": ReLU(),
+        #         "lin2": Linear(hidden_dim, hidden_dim),
+        #         "act2": ReLU(),
+        #         "bn": BN(hidden_dim),
+        #     }
+        # ),
+        #     train_eps=True)
+
+        self.convs = torch.nn.ModuleList()
+
+        self.convs.append(GINConv(Sequential(
+            OrderedDict([
+                ("lin1", Linear(in_dim, hidden_dim)),
+                ("act1", ReLU()),
+                ("lin2", Linear(hidden_dim, hidden_dim)),
+                ("act2", ReLU()),
+                ("bn", BN(hidden_dim)),
+            ])
         ),
             train_eps=True)
-        self.convs = torch.nn.ModuleList()
+        )
+
         for i in range(num_layers - 1):
             self.convs.append(
                 GINConv(Sequential(
-                    Linear(hidden_dim, hidden_dim),
-                    ReLU(),
-                    Linear(hidden_dim, hidden_dim),
-                    ReLU(),
-                    BN(hidden_dim),
+                    OrderedDict([
+                        ("lin1", Linear(hidden_dim, hidden_dim)),
+                        ("act1", ReLU()),
+                        ("lin2", Linear(hidden_dim, hidden_dim)),
+                        ("act2", ReLU()),
+                        ("bn", BN(hidden_dim)),
+                    ])
                 ),
                     train_eps=True))
         self.lin1 = Linear(hidden_dim, hidden_dim)
@@ -42,7 +62,7 @@ class GIN(torch.nn.Module):
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
-        x = self.conv1(x, edge_index)
+        # x = self.conv1(x, edge_index)
         for conv in self.convs:
             x = conv(x, edge_index)
 
@@ -55,6 +75,30 @@ class GIN(torch.nn.Module):
 
     def __repr__(self):
         return self.__class__.__name__
+
+    def activations(self, data):
+        """
+        gets the values of the activation functions for the given input
+        :param data: the input dateset
+        :return: the value of the activation functions
+        """
+        hs = {}
+        device = next(self.parameters()).device
+        x, edge_index = data.x.to(device), data.edge_index.to(device)
+        # for i, layer in enumerate(self.convs[:-1], start=1):
+        for i, layer in enumerate(self.convs):
+            # go over the internal layers of GIN to get the value of its activation last function
+            temp_x = layer.nn.lin1(x)
+            temp_x = layer.nn.act1(temp_x)
+            temp_x = layer.nn.lin2(temp_x)
+            temp_x = layer.nn.act2(temp_x)
+            hs[f"{i}.0"] = temp_x  # HINT: save the value of the second activation function of each GIN layer
+
+            # x = layer["bn"](x)  # HINT: we can ignore the value of the batch normalization since it's not needed
+            x = layer(x, edge_index)  # HINT: get the result of the whole GIN layer, so we can feed it to the next layer
+        hs[f"{len(self.convs)}.0"] = F.relu(self.lin1(x))
+
+        return hs
 
 
 MODELS = {
