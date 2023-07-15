@@ -55,7 +55,8 @@ def train_models(cfg, activations_root, predictions_dir, dataset):
         # After training, save the activations of a model
         save_dir = os.path.join(activations_root, str(current_seed))
 
-        os.makedirs(save_dir, exist_ok=False)
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
+        # os.makedirs(save_dir, parents=True, exist_ok=False)
         # if cfg.cka.use_masks:  # no need to save activations if they are not used later
         log.info("Saving model activations to %s", save_dir)
         with torch.no_grad():
@@ -153,11 +154,17 @@ def train_graph_classifier_model(cfg: DictConfig, train_dataset: Dataset, valid_
     for e in range(n_epochs):
         train_loss = train_model_once(model, train_dataloader, optimizer, criterion)
         eval_results = evaluate(model, train_dataloader, valid_dataloader, test_dataloader, criterion=criterion)
-        log.info(
-            f"time={time.perf_counter() - start:.2f} epoch={e}: "
-            f"{train_loss=:.3f}, train_acc={eval_results['train_acc']:.2f}, "
-            f"valid_loss={eval_results['valid_loss']:.3f}, valid_acc={eval_results['valid_acc']:.2f}"
-        )
+        if 'train_acc' in eval_results.keys():
+            log.info(
+                f"time={time.perf_counter() - start:.2f} epoch={e}: "
+                f"{train_loss=:.3f}, train_acc={eval_results['train_acc']:.2f}, "
+                f"valid_loss={eval_results['valid_loss']:.3f}, valid_acc={eval_results['valid_acc']:.2f}"
+            )
+        else:
+            log.info(
+                f"time={time.perf_counter() - start:.2f} epoch={e}: {train_loss=:.3f}, "
+                f"valid_loss={eval_results['valid_loss']:.3f}"
+            )
         early_stopper(eval_results["valid_loss"], model)
         if early_stopper.early_stop and cfg.early_stopping:
             log.info(
@@ -171,11 +178,18 @@ def train_graph_classifier_model(cfg: DictConfig, train_dataset: Dataset, valid_
     if Path(early_stopper.path).exists():
         model.load_state_dict(torch.load(early_stopper.path))
     eval_results = evaluate(model, train_dataloader, valid_dataloader, test_dataloader, criterion=criterion)
-    log.info(
-        f"train_loss={eval_results['train_loss']:.3f}, train_acc={eval_results['train_acc']:.2f}, "
-        f"valid_loss={eval_results['valid_loss']:.3f}, valid_acc={eval_results['valid_acc']:.2f}, "
-        f"test_loss={eval_results['test_loss']:.3f}, test_acc={eval_results['test_acc']:.2f}"
-    )
+    if 'train_acc' in eval_results.keys():
+        log.info(
+            f"train_loss={eval_results['train_loss']:.3f}, train_acc={eval_results['train_acc']:.2f}, "
+            f"valid_loss={eval_results['valid_loss']:.3f}, valid_acc={eval_results['valid_acc']:.2f}, "
+            f"test_loss={eval_results['test_loss']:.3f}, test_acc={eval_results['test_acc']:.2f}"
+        )
+    else:
+        log.info(
+            f"train_loss={eval_results['train_loss']:.3f}, "
+            f"valid_loss={eval_results['valid_loss']:.3f}, "
+            f"test_loss={eval_results['test_loss']:.3f}"
+        )
 
     return model, eval_results
 
@@ -189,7 +203,10 @@ def train_model_once(model: torch.nn.Module, train_loader: DataLoader, optimizer
         data = data.to(next(model.parameters()).device)
         optimizer.zero_grad()
         out = model(data)
-        loss = criterion(out, data.y.view(-1))
+        if out.shape == data.y.shape:
+            loss = criterion(out, data.y)
+        else:
+            loss = criterion(out, data.y.view(-1))
         optimizer.zero_grad()
         loss.backward()
         total_loss += loss.item() * num_graphs(data)
@@ -207,10 +224,14 @@ def num_graphs(data):
 def find_suboptimal_models(evals: List[Dict[str, float]], allowed_deviation: int = 2) \
         -> Dict[str, List[Tuple[int, float]]]:
     results = {}
+    if 'train_acc' in evals[0].keys():
+        metric = "acc"
+    else:
+        metric = "loss"
     for split in ["train", "valid", "test"]:
-        split_results = [r[f"{split}_acc"] for r in evals]
+        split_results = [r[f"{split}_{metric}"] for r in evals]
         log.info(
-            "Mean %s accuracy=%.3f, Std=%.3f",
+            f"Mean %s {metric}=%.3f, Std=%.3f",
             split,
             np.mean(split_results),
             np.std(split_results),
@@ -222,7 +243,7 @@ def find_suboptimal_models(evals: List[Dict[str, float]], allowed_deviation: int
             ):
                 suspicious_models.append((i, acc))
         log.info(
-            "Suspicious models (large deviation from mean acc on %s): %s",
+            f"Suspicious models (large deviation from mean {metric} on %s): %s",
             split,
             str(suspicious_models),
         )
@@ -243,7 +264,8 @@ def evaluate(model: torch.nn.Module, train_dataloader: Optional[DataLoader] = No
                 data = data.to(device)
                 out = model(data)
                 y_pred = out.argmax(dim=-1, keepdim=True)
-                results[f"{key}_acc"] = accuracy(y_pred.view(-1), data.y)
+                if out.shape != data.y.shape:
+                    results[f"{key}_acc"] = accuracy(y_pred.view(-1), data.y)
                 if criterion is not None:
                     loss = criterion(out, data.y).item()
                     results[f"{key}_loss"] = loss

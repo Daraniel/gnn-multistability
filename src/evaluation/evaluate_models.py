@@ -22,7 +22,7 @@ from evaluation import feature_space_linear_cka
 from evaluation.cca import get_cca
 from evaluation.procrustes import get_procrustes
 from evaluation.rashomon_capacity import compute_capacity
-from evaluation.rsa import get_rsa_cos, get_rsa_corr, get_rsa_tau_a, get_rsa_rho_a
+from evaluation.rsa import get_rsa_cos, get_rsa_corr
 
 log = logging.getLogger(__name__)
 
@@ -61,76 +61,86 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
         evals=evals,
     )
 
-    # CKA experiment
-    run_experiments_with_function(
-        cfg=cfg,
-        figures_dir=figures_dir,
-        predictions_dir=predictions_dir,
-        cka_dir=cka_dir,
-        activations_root=activations_root,
-        function_to_use=feature_space_linear_cka,
-        calculating_function_name="CKA"
-    )
+    if 'train_acc' in evals[0].keys():  # HINT: only run for classification tasks
+        # CKA experiment
+        run_experiments_with_function(
+            cfg=cfg,
+            figures_dir=figures_dir,
+            predictions_dir=predictions_dir,
+            cka_dir=cka_dir,
+            activations_root=activations_root,
+            function_to_use=feature_space_linear_cka,
+            calculating_function_name="CKA"
+        )
 
-    # CCA experiment
-    run_experiments_with_function(
-        cfg=cfg,
-        figures_dir=figures_dir,
-        predictions_dir=predictions_dir,
-        cka_dir=cka_dir,
-        activations_root=activations_root,
-        function_to_use=get_cca,
-        calculating_function_name="CCA"
-    )
+        # CCA experiment
+        run_experiments_with_function(
+            cfg=cfg,
+            figures_dir=figures_dir,
+            predictions_dir=predictions_dir,
+            cka_dir=cka_dir,
+            activations_root=activations_root,
+            function_to_use=get_cca,
+            calculating_function_name="CCA"
+        )
 
-    # procrustes experiment
-    run_experiments_with_function(
-        cfg=cfg,
-        figures_dir=figures_dir,
-        predictions_dir=predictions_dir,
-        cka_dir=cka_dir,
-        activations_root=activations_root,
-        function_to_use=get_procrustes,
-        calculating_function_name="procrustes"
-    )
+        # procrustes experiment
+        run_experiments_with_function(
+            cfg=cfg,
+            figures_dir=figures_dir,
+            predictions_dir=predictions_dir,
+            cka_dir=cka_dir,
+            activations_root=activations_root,
+            function_to_use=get_procrustes,
+            calculating_function_name="procrustes"
+        )
 
-    # RSA experiments
-    run_experiments_with_function(
-        cfg=cfg,
-        figures_dir=figures_dir,
-        predictions_dir=predictions_dir,
-        cka_dir=cka_dir,
-        activations_root=activations_root,
-        function_to_use=get_rsa_cos,
-        calculating_function_name="rsa_cos"
-    )
-    run_experiments_with_function(
-        cfg=cfg,
-        figures_dir=figures_dir,
-        predictions_dir=predictions_dir,
-        cka_dir=cka_dir,
-        activations_root=activations_root,
-        function_to_use=get_rsa_corr,
-        calculating_function_name="rsa_corr"
-    )
-    run_experiments_with_function(
-        cfg=cfg,
-        figures_dir=figures_dir,
-        predictions_dir=predictions_dir,
-        cka_dir=cka_dir,
-        activations_root=activations_root,
-        function_to_use=get_rsa_tau_a,
-        calculating_function_name="rsa_tau_a"
-    )
-    run_experiments_with_function(
-        cfg=cfg,
-        figures_dir=figures_dir,
-        predictions_dir=predictions_dir,
-        cka_dir=cka_dir,
-        activations_root=activations_root,
-        function_to_use=get_rsa_rho_a,
-        calculating_function_name="rsa_rho_a"
-    )
+        # RSA experiments
+        run_experiments_with_function(
+            cfg=cfg,
+            figures_dir=figures_dir,
+            predictions_dir=predictions_dir,
+            cka_dir=cka_dir,
+            activations_root=activations_root,
+            function_to_use=get_rsa_cos,
+            calculating_function_name="rsa_cos"
+        )
+        run_experiments_with_function(
+            cfg=cfg,
+            figures_dir=figures_dir,
+            predictions_dir=predictions_dir,
+            cka_dir=cka_dir,
+            activations_root=activations_root,
+            function_to_use=get_rsa_corr,
+            calculating_function_name="rsa_corr"
+        )
+    # run_experiments_with_function(
+    #     cfg=cfg,
+    #     figures_dir=figures_dir,
+    #     predictions_dir=predictions_dir,
+    #     cka_dir=cka_dir,
+    #     activations_root=activations_root,
+    #     function_to_use=get_rsa_corr_cov,
+    #     calculating_function_name="rsa_corr_cov"
+    # )
+    # run_experiments_with_function(
+    #     cfg=cfg,
+    #     figures_dir=figures_dir,
+    #     predictions_dir=predictions_dir,
+    #     cka_dir=cka_dir,
+    #     activations_root=activations_root,
+    #     function_to_use=get_rsa_tau_a,
+    #     calculating_function_name="rsa_tau_a"
+    # )
+    # run_experiments_with_function(
+    #     cfg=cfg,
+    #     figures_dir=figures_dir,
+    #     predictions_dir=predictions_dir,
+    #     cka_dir=cka_dir,
+    #     activations_root=activations_root,
+    #     function_to_use=get_rsa_rho_a,
+    #     calculating_function_name="rsa_rho_a"
+    # )
 
     # Rashomon capacity experiment
     rashomon_capacity = compute_capacity(np.array([x.numpy() for x in outputs_test]), epsilon=1e-12)
@@ -216,44 +226,47 @@ def classification_stability_experiments(cfg: DictConfig, predictions_dir: Path,
                                          outputs_test: List[torch.Tensor], logits_test: List[torch.Tensor],
                                          test_dataset: torch_geometric.data.Dataset, evals: List[Dict[str, float]]):
     log.info("Calculating stability of predictions...")
-    preval_df = []
-    nodewise_distr_path = Path(predictions_dir, f"nodewise_distr.npy")
+
     distr = evaluation.predictions.classification_node_distr(
         predictions, test_dataset.num_classes  # type:ignore
     )
-    np.save(str(nodewise_distr_path), distr)
-    # log.info(f"nodewise_distr: {distr}")
+    if 'train_acc' in evals[0].keys():  # HINT: only run for classification tasks
+        preval_df = []
+        nodewise_distr_path = Path(predictions_dir, f"nodewise_distr.npy")
 
-    # for split_name, idx in split_idx.items():
-    for split_name in ['test']:
-        # filtered_preds = [p[idx] for p in predictions]
-        filtered_preds = [p for p in predictions]
-        prevalences = evaluation.predictions.classification_prevalence(
-            filtered_preds, test_dataset.num_classes  # type:ignore
-        )
-        for key, val in prevalences.items():
-            preval_df.append((split_name, key, val[0], val[1]))
+        np.save(str(nodewise_distr_path), distr)
+        # log.info(f"nodewise_distr: {distr}")
 
-        frac_stable = evaluation.predictions.fraction_stable_predictions(
-            filtered_preds
+        # for split_name, idx in split_idx.items():
+        for split_name in ['test']:
+            # filtered_preds = [p[idx] for p in predictions]
+            filtered_preds = [p for p in predictions]
+            prevalences = evaluation.predictions.classification_prevalence(
+                filtered_preds, test_dataset.num_classes  # type:ignore
+            )
+            for key, val in prevalences.items():
+                preval_df.append((split_name, key, val[0], val[1]))
+
+            frac_stable = evaluation.predictions.fraction_stable_predictions(
+                filtered_preds
+            )
+            log.info("Predictions (%s) stable over all models: %.2f", split_name, frac_stable)
+        prevalences_path = Path(predictions_dir, "prevalences.csv")
+        pd.DataFrame.from_records(preval_df).to_csv(prevalences_path)
+        # todo: update
+        plots.save_class_prevalence_plots(
+            test_dataset[0].y,  # type:ignore
+            # split_idx["test"],
+            prevalences_path=prevalences_path,
+            savepath=figures_dir,
+            dataset_name=cfg.dataset.name,
         )
-        log.info("Predictions (%s) stable over all models: %.2f", split_name, frac_stable)
-    prevalences_path = Path(predictions_dir, "prevalences.csv")
-    pd.DataFrame.from_records(preval_df).to_csv(prevalences_path)
-    # todo: update
-    plots.save_class_prevalence_plots(
-        test_dataset[0].y,  # type:ignore
-        # split_idx["test"],
-        prevalences_path=prevalences_path,
-        savepath=figures_dir,
-        dataset_name=cfg.dataset.name,
-    )
-    plots.save_node_instability_distribution(
-        # split_idx["test"],
-        prediction_distr_path=nodewise_distr_path,
-        savepath=figures_dir,
-        dataset_name=cfg.dataset.name,
-    )
+        plots.save_node_instability_distribution(
+            # split_idx["test"],
+            prediction_distr_path=nodewise_distr_path,
+            savepath=figures_dir,
+            dataset_name=cfg.dataset.name,
+        )
 
     # Compare the model output distributions to the prediction distribution
     logits_test: np.ndarray = torch.stack(logits_test, dim=0).numpy()
@@ -316,9 +329,13 @@ def classification_stability_experiments(cfg: DictConfig, predictions_dir: Path,
     np.save(str(Path(predictions_dir, "pi_distr.npy")), pi_distr)
     log.info(f"pi_distr: {pi_distr}")
 
+    if 'train_acc' in evals[0].keys():
+        metric = "acc"
+    else:
+        metric = "loss"
     norm_pi_distr = evaluation.predictions.normalized_pairwise_instability(
         preds=probas_test.argmax(axis=2),
-        accs=np.asarray([e["test_acc"] for e in evals]),
+        accs=np.asarray([e[f"test_{metric}"] for e in evals]),
         figurepath=figures_dir,
     )
     np.save(str(Path(predictions_dir, "normpi_distr.npy")), norm_pi_distr)
@@ -336,17 +353,18 @@ def classification_stability_experiments(cfg: DictConfig, predictions_dir: Path,
     np.save(str(Path(predictions_dir, "l1_distr.npy")), l1_distr)
     log.info(f"l1_distr: {l1_distr}")
 
-    (
-        true_diffs,
-        false_diffs,
-    ) = evaluation.predictions.pairwise_conditioned_instability(
-        probas_test.argmax(axis=2),
-        test_dataset[0].y.cpu(),  # type:ignore
-    )
-    np.save(str(Path(predictions_dir, "true_pi_distr.npy")), true_diffs)
-    np.save(str(Path(predictions_dir, "false_pi_distr.npy")), false_diffs)
-    log.info(f"true_pi_distr: {true_diffs}")
-    log.info(f"false_pi_distr: {false_diffs}")
+    if 'train_acc' in evals[0].keys():  # HINT: only run for classification tasks
+        (
+            true_diffs,
+            false_diffs,
+        ) = evaluation.predictions.pairwise_conditioned_instability(
+            probas_test.argmax(axis=2),
+            test_dataset[0].y.cpu(),  # type:ignore
+        )
+        np.save(str(Path(predictions_dir, "true_pi_distr.npy")), true_diffs)
+        np.save(str(Path(predictions_dir, "false_pi_distr.npy")), false_diffs)
+        log.info(f"true_pi_distr: {true_diffs}")
+        log.info(f"false_pi_distr: {false_diffs}")
 
 
 # todo: cleanup

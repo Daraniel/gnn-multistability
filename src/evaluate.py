@@ -43,7 +43,7 @@ def main(instance_path: str):
 if __name__ == "__main__":
     os.chdir('..')
     parser = argparse.ArgumentParser()
-    parser.add_argument('--path', required=False, default='outputs/2023-05-12/12-30-18',
+    parser.add_argument('--path', required=False, default='outputs/2023-07-12/11-30-48',
                         help='Path to the trained instance, can be either relative to the project dir or absolute')
     args = parser.parse_args()
     path = args.path

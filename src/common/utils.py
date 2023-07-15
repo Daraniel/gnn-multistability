@@ -83,4 +83,5 @@ def fix_seeds(seed: int):
     :param seed: random seed to use
     """
     pl.seed_everything(seed)
-    torch.use_deterministic_algorithms(True)  # https://docs.nvidia.com/cuda/cublas/index.html#cublasApi_reproducibility
+    # todo: fix the problem with warn only and remove it
+    torch.use_deterministic_algorithms(True, warn_only=True)  # https://docs.nvidia.com/cuda/cublas/index.html#cublasApi_reproducibility

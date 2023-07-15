@@ -1,0 +1,6 @@
+name: gatedgcn
+num_layers: 2
+hidden_dim: 8
+dropout_p: 0.6
+#n_heads: 8
+#n_output_heads: 8
