@@ -1,0 +1,44 @@
+name: gnn-multistability
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - pyg=2.3.0
+  - urllib3=1.26.15
+  - mpmath=1.3.0
+  - ogb=1.3.6
+  - pytorch-cuda=11.8
+  - pip=23.1.2
+  - omegaconf=2.3.0
+  - wheel=0.40.0
+  - pillow=9.5.0
+  - torchmetrics=0.11.4
+  - matplotlib-base=3.7.1
+  - setuptools=67.7.2
+  - python=3.9.16
+  - markupsafe=2.1.2
+  - scipy=1.10.1
+  - pandas=2.0.1
+  - tabulate=0.9.0
+  - lightning-utilities=0.8.0
+  - requests=2.29.0
+  - scikit-learn=1.2.2
+  - zipp=3.15.0
+  - sympy=1.11.1
+  - seaborn-base=0.12.2
+  - tqdm=4.65.0
+  - networkx=3.1
+  - pytorch-mutex=1.0
+  - hydra-core=1.3.2
+  - munkres=1.1.4
+  - yaml=0.2.5
+  - seaborn=0.12.2
+  - statsmodels=0.14.0
+  - numpy=1.24.3
+  - pytorch=2.0.1
+  - littleutils=0.2.2
+  - pytorch-lightning=2.0.2
+  - rsatoolbox=0.1.3
+variables:
+  CUBLAS_WORKSPACE_CONFIG: :4096:8
+prefix: /root/envs/gnn-multistability
