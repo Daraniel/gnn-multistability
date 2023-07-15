@@ -98,27 +98,27 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
             multi_process=False,
         )
 
-        # RSA experiments
-        run_experiments_with_function(
-            cfg=cfg,
-            figures_dir=figures_dir,
-            predictions_dir=predictions_dir,
-            cka_dir=cka_dir,
-            activations_root=activations_root,
-            function_to_use=get_rsa_cos,
-            calculating_function_name="rsa_cos",
-            multi_process=True,
-        )
-        run_experiments_with_function(
-            cfg=cfg,
-            figures_dir=figures_dir,
-            predictions_dir=predictions_dir,
-            cka_dir=cka_dir,
-            activations_root=activations_root,
-            function_to_use=get_rsa_corr,
-            calculating_function_name="rsa_corr",
-            multi_process=True,
-        )
+        # # RSA experiments
+        # run_experiments_with_function(
+        #     cfg=cfg,
+        #     figures_dir=figures_dir,
+        #     predictions_dir=predictions_dir,
+        #     cka_dir=cka_dir,
+        #     activations_root=activations_root,
+        #     function_to_use=get_rsa_cos,
+        #     calculating_function_name="rsa_cos",
+        #     multi_process=True,
+        # )
+        # run_experiments_with_function(
+        #     cfg=cfg,
+        #     figures_dir=figures_dir,
+        #     predictions_dir=predictions_dir,
+        #     cka_dir=cka_dir,
+        #     activations_root=activations_root,
+        #     function_to_use=get_rsa_corr,
+        #     calculating_function_name="rsa_corr",
+        #     multi_process=True,
+        # )
     # run_experiments_with_function(
     #     cfg=cfg,
     #     figures_dir=figures_dir,

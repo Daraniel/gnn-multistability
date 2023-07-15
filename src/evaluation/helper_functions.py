@@ -1,12 +1,11 @@
 import itertools
-import multiprocessing
+import math
 import os
 import warnings
 from pathlib import Path
 from typing import List, Union, Callable
 
 import numpy as np
-from joblib import Parallel, delayed
 from tqdm import tqdm
 
 from evaluation import experiments
@@ -61,24 +60,38 @@ def pairwise_apply_function_full(dirnames: List[str], cka_dir: Union[str, Path],
 def pairwise_apply_function_diag(dirnames: List[str], cka_dir: Union[str, Path], split_name: str,  # idx: np.ndarray,
                                  activations_root: Path, function_to_use: Callable, calculating_function_name: str,
                                  save_to_disk: bool = True, multi_process: bool = False) -> List[np.ndarray]:
+    # pair_length: int = 2
+    # if multi_process:
+    #     cores = min(8, multiprocessing.cpu_count() - 1)
+    #     cka_matrices = Parallel(n_jobs=cores, prefer='processes')(
+    #         delayed(inner_loop)(activations_root, calculating_function_name, cka_dir, function_to_use,
+    #                             save_to_disk, seed_pair, split_name, i)
+    #         for i, seed_pair in enumerate(itertools.combinations(sorted(dirnames), pair_length)))
+    #     return [value for index, value in sorted(cka_matrices, key=lambda tup: tup[0])]
+    # else:
+    #     cka_matrices = []
+    #     for i, seed_pair in enumerate(itertools.combinations(sorted(dirnames), pair_length)):
+    #         cka_matrices.append(inner_loop(activations_root, calculating_function_name, cka_dir, function_to_use,
+    #                                        save_to_disk, seed_pair, split_name, i)[1])
+    #     return cka_matrices
+
+    cka_matrices = []
     pair_length: int = 2
-    if multi_process:
-        cores = min(8, multiprocessing.cpu_count() - 1)
-        cka_matrices = Parallel(n_jobs=cores, prefer='processes')(
-            delayed(inner_loop)(activations_root, calculating_function_name, cka_dir, function_to_use,
-                                save_to_disk, seed_pair, split_name, i)
-            for i, seed_pair in enumerate(itertools.combinations(sorted(dirnames), pair_length)))
-        return [value for index, value in sorted(cka_matrices, key=lambda tup: tup[0])]
-    else:
-        cka_matrices = []
-        for i, seed_pair in enumerate(itertools.combinations(sorted(dirnames), pair_length)):
+    with tqdm(
+            desc=f"Pairwise {calculating_function_name} computation (diag)",
+            total=math.comb(len(dirnames), pair_length),
+    ) as t:
+        for seed_pair in itertools.combinations(sorted(dirnames), pair_length):
             cka_matrices.append(inner_loop(activations_root, calculating_function_name, cka_dir, function_to_use,
-                                           save_to_disk, seed_pair, split_name, i)[1])
-        return cka_matrices
+                                           save_to_disk, seed_pair, split_name))
+            t.update()
+
+    return cka_matrices
 
 
 def inner_loop(activations_root, calculating_function_name, cka_dir, function_to_use, save_to_disk,
-               seed_pair, split_name, i):
+               seed_pair, split_name):
+    # seed_pair, split_name, i):
     with warnings.catch_warnings():
         warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -107,7 +120,8 @@ def inner_loop(activations_root, calculating_function_name, cka_dir, function_to
                 str(Path(cka_dir, f"{calculating_function_name}_{split_name}_{'_'.join(seed_pair)}.npy")),
                 cka_values,
             )
-        return i, cka_values
+        # return i, cka_values
+        return cka_values
 
 
 # todo: cleanup
