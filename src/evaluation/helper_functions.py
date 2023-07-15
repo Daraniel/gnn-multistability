@@ -63,7 +63,7 @@ def pairwise_apply_function_diag(dirnames: List[str], cka_dir: Union[str, Path],
                                  save_to_disk: bool = True) -> List[np.ndarray]:
     # cka_matrices = []
     pair_length: int = 2
-    cores = max(32, multiprocessing.cpu_count() - 1)
+    cores = min(32, multiprocessing.cpu_count() - 1)
     cka_matrices = Parallel(n_jobs=cores)(
         delayed(inner_loop)(activations_root, calculating_function_name, cka_dir, function_to_use,
                             save_to_disk, seed_pair, split_name, i)
