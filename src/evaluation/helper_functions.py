@@ -63,7 +63,7 @@ def pairwise_apply_function_diag(dirnames: List[str], cka_dir: Union[str, Path],
                                  save_to_disk: bool = True) -> List[np.ndarray]:
     # cka_matrices = []
     pair_length: int = 2
-    cores = min(32, multiprocessing.cpu_count() - 1)
+    cores = min(8, multiprocessing.cpu_count() - 1)
     cka_matrices = Parallel(n_jobs=cores)(
         delayed(inner_loop)(activations_root, calculating_function_name, cka_dir, function_to_use,
                             save_to_disk, seed_pair, split_name, i)
@@ -73,35 +73,35 @@ def pairwise_apply_function_diag(dirnames: List[str], cka_dir: Union[str, Path],
 
 def inner_loop(activations_root, calculating_function_name, cka_dir, function_to_use, save_to_disk,
                seed_pair, split_name, i):
-    import warnings
-    warnings.filterwarnings('ignore')
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore', category=FutureWarning)
 
-    # 1. Extract all filenames related to saved activations and sort them so
-    # plots using them have a fixed structure
-    fnames = experiments.find_activation_fnames(seed_pair, activations_root)
-    # 2. Only activations of corresponding layer are compared via CKA
-    # Empty cells are encoded as -inf
-    if len(fnames[0]) != len(fnames[1]):
-        raise ValueError(
-            "Models have different depth. No clear correspondence between layers!"
-        )
-    cka_values = np.ones((len(fnames[0]), len(fnames[1]))) * -np.inf
-    for i, (fname1, fname2) in enumerate(zip(fnames[0], fnames[1])):
-        x = experiments.load_representation(
-            os.path.join(activations_root, seed_pair[0], f"{fname1}.pt")
-            # )[idx]
-        )
-        y = experiments.load_representation(
-            os.path.join(activations_root, seed_pair[1], f"{fname2}.pt")
-            # )[idx]
-        )
-        cka_values[i, i] = function_to_use(x, y)
-    if save_to_disk:
-        np.save(
-            str(Path(cka_dir, f"{calculating_function_name}_{split_name}_{'_'.join(seed_pair)}.npy")),
-            cka_values,
-        )
-    return i, cka_values
+        # 1. Extract all filenames related to saved activations and sort them so
+        # plots using them have a fixed structure
+        fnames = experiments.find_activation_fnames(seed_pair, activations_root)
+        # 2. Only activations of corresponding layer are compared via CKA
+        # Empty cells are encoded as -inf
+        if len(fnames[0]) != len(fnames[1]):
+            raise ValueError(
+                "Models have different depth. No clear correspondence between layers!"
+            )
+        cka_values = np.ones((len(fnames[0]), len(fnames[1]))) * -np.inf
+        for i, (fname1, fname2) in enumerate(zip(fnames[0], fnames[1])):
+            x = experiments.load_representation(
+                os.path.join(activations_root, seed_pair[0], f"{fname1}.pt")
+                # )[idx]
+            )
+            y = experiments.load_representation(
+                os.path.join(activations_root, seed_pair[1], f"{fname2}.pt")
+                # )[idx]
+            )
+            cka_values[i, i] = function_to_use(x, y)
+        if save_to_disk:
+            np.save(
+                str(Path(cka_dir, f"{calculating_function_name}_{split_name}_{'_'.join(seed_pair)}.npy")),
+                cka_values,
+            )
+        return i, cka_values
 
 
 # todo: cleanup
