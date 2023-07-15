@@ -60,15 +60,21 @@ def pairwise_apply_function_full(dirnames: List[str], cka_dir: Union[str, Path],
 # todo: update
 def pairwise_apply_function_diag(dirnames: List[str], cka_dir: Union[str, Path], split_name: str,  # idx: np.ndarray,
                                  activations_root: Path, function_to_use: Callable, calculating_function_name: str,
-                                 save_to_disk: bool = True) -> List[np.ndarray]:
-    # cka_matrices = []
+                                 save_to_disk: bool = True, multi_process: bool = False) -> List[np.ndarray]:
     pair_length: int = 2
-    cores = min(8, multiprocessing.cpu_count() - 1)
-    cka_matrices = Parallel(n_jobs=cores)(
-        delayed(inner_loop)(activations_root, calculating_function_name, cka_dir, function_to_use,
-                            save_to_disk, seed_pair, split_name, i)
-        for i, seed_pair in enumerate(itertools.combinations(sorted(dirnames), pair_length)))
-    return [value for index, value in sorted(cka_matrices, key=lambda tup: tup[0])]
+    if multi_process:
+        cores = min(8, multiprocessing.cpu_count() - 1)
+        cka_matrices = Parallel(n_jobs=cores)(
+            delayed(inner_loop)(activations_root, calculating_function_name, cka_dir, function_to_use,
+                                save_to_disk, seed_pair, split_name, i)
+            for i, seed_pair in enumerate(itertools.combinations(sorted(dirnames), pair_length)))
+        return [value for index, value in sorted(cka_matrices, key=lambda tup: tup[0])]
+    else:
+        cka_matrices = []
+        for i, seed_pair in enumerate(itertools.combinations(sorted(dirnames), pair_length)):
+            cka_matrices.append(inner_loop(activations_root, calculating_function_name, cka_dir, function_to_use,
+                                    save_to_disk, seed_pair, split_name, i)[1])
+        return cka_matrices
 
 
 def inner_loop(activations_root, calculating_function_name, cka_dir, function_to_use, save_to_disk,
@@ -106,7 +112,8 @@ def inner_loop(activations_root, calculating_function_name, cka_dir, function_to
 
 # todo: cleanup
 def cka_matrix(dirnames: List[str], cka_dir: Union[str, Path], split_name: str, mode: str,  # idx: np.ndarray,
-               save_to_disk: bool, activations_root: Path, function_to_use: Callable, calculating_function_name: str) \
+               save_to_disk: bool, activations_root: Path, function_to_use: Callable, calculating_function_name: str,
+               multi_process: bool = False) \
         -> List[np.ndarray]:
     if mode == "full":
         ckas = pairwise_apply_function_full(
@@ -115,6 +122,7 @@ def cka_matrix(dirnames: List[str], cka_dir: Union[str, Path], split_name: str, 
     elif mode == "diag":
         ckas = pairwise_apply_function_diag(
             dirnames, cka_dir, split_name, activations_root, function_to_use, calculating_function_name, save_to_disk,
+            multi_process=multi_process
         )
     else:
         raise ValueError(f"Unknown {calculating_function_name} mode: {mode}")

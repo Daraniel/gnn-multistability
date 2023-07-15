@@ -71,6 +71,7 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
             activations_root=activations_root,
             function_to_use=feature_space_linear_cka,
             calculating_function_name="CKA",
+            multi_process=False,
         )
 
         # CCA experiment
@@ -82,6 +83,7 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
             activations_root=activations_root,
             function_to_use=get_cca,
             calculating_function_name="CCA",
+            multi_process=False,
         )
 
         # procrustes experiment
@@ -93,6 +95,7 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
             activations_root=activations_root,
             function_to_use=get_procrustes,
             calculating_function_name="procrustes",
+            multi_process=False,
         )
 
         # RSA experiments
@@ -104,6 +107,7 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
             activations_root=activations_root,
             function_to_use=get_rsa_cos,
             calculating_function_name="rsa_cos",
+            multi_process=True,
         )
         run_experiments_with_function(
             cfg=cfg,
@@ -113,6 +117,7 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
             activations_root=activations_root,
             function_to_use=get_rsa_corr,
             calculating_function_name="rsa_corr",
+            multi_process=True,
         )
     # run_experiments_with_function(
     #     cfg=cfg,
@@ -369,7 +374,8 @@ def classification_stability_experiments(cfg: DictConfig, predictions_dir: Path,
 
 # todo: cleanup
 def run_experiments_with_function(cfg: DictConfig, figures_dir: Path, predictions_dir: Path, cka_dir: Path,
-                                  activations_root: Path, function_to_use: Callable, calculating_function_name: str):
+                                  activations_root: Path, function_to_use: Callable, calculating_function_name: str,
+                                  multi_process: bool=False):
     log.info(f"Starting pairwise {calculating_function_name} computation.")
     # Jetzt startet die Analyse auf allen paaren der trainierten Modelle
     accuracy_records: List[Tuple[str, str, str, float]] = []
@@ -407,6 +413,7 @@ def run_experiments_with_function(cfg: DictConfig, figures_dir: Path, prediction
             activations_root=activations_root,
             function_to_use=function_to_use,
             calculating_function_name=calculating_function_name,
+            multi_process=multi_process
         )
 
         # ------------------------------------------------------------------------------
