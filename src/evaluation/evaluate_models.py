@@ -375,7 +375,7 @@ def classification_stability_experiments(cfg: DictConfig, predictions_dir: Path,
 # todo: cleanup
 def run_experiments_with_function(cfg: DictConfig, figures_dir: Path, predictions_dir: Path, cka_dir: Path,
                                   activations_root: Path, function_to_use: Callable, calculating_function_name: str,
-                                  multi_process: bool=False):
+                                  multi_process: bool = False):
     log.info(f"Starting pairwise {calculating_function_name} computation.")
     # Jetzt startet die Analyse auf allen paaren der trainierten Modelle
     accuracy_records: List[Tuple[str, str, str, float]] = []

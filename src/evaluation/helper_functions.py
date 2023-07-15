@@ -64,7 +64,7 @@ def pairwise_apply_function_diag(dirnames: List[str], cka_dir: Union[str, Path],
     pair_length: int = 2
     if multi_process:
         cores = min(8, multiprocessing.cpu_count() - 1)
-        cka_matrices = Parallel(n_jobs=cores)(
+        cka_matrices = Parallel(n_jobs=cores, prefer='processes')(
             delayed(inner_loop)(activations_root, calculating_function_name, cka_dir, function_to_use,
                                 save_to_disk, seed_pair, split_name, i)
             for i, seed_pair in enumerate(itertools.combinations(sorted(dirnames), pair_length)))
@@ -73,7 +73,7 @@ def pairwise_apply_function_diag(dirnames: List[str], cka_dir: Union[str, Path],
         cka_matrices = []
         for i, seed_pair in enumerate(itertools.combinations(sorted(dirnames), pair_length)):
             cka_matrices.append(inner_loop(activations_root, calculating_function_name, cka_dir, function_to_use,
-                                    save_to_disk, seed_pair, split_name, i)[1])
+                                           save_to_disk, seed_pair, split_name, i)[1])
         return cka_matrices
 
 
