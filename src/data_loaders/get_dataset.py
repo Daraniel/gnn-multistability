@@ -17,9 +17,11 @@ DATASETS = {
     'citation2': ogb.get_ogbl_citation2,
     'collab': ogb.get_ogbl_collab,
     'ppa': ogb.get_ogbl_ppa,
-    'imdb_binary': tu.get_imdb_binary,
+    # 'imdb_binary': tu.get_imdb_binary,  # dataset is disabled because it is missing X values
+    'aids': tu.get_aids,
     'proteins': tu.get_proteins,
     'enzymes': tu.get_enzymes,
+    'yeast': tu.get_yeast,
     'alchemy': tu.get_alchemy,
     'zinc': tu.get_zinc,
     'qm9': tu.get_qm9,

@@ -48,6 +48,16 @@ def get_imdb_binary(dataset_root: Union[str, Path]) -> Dataset:
     return get_dataset(dataset_name, dataset_root)
 
 
+def get_aids(dataset_root: Union[str, Path]) -> Dataset:
+    """
+    get AIDS dataset
+    :param dataset_root: root folder of the datasets
+    :return: the dataset object
+    """
+    dataset_name = 'AIDS'
+    return get_dataset(dataset_name, dataset_root)
+
+
 def get_proteins(dataset_root: Union[str, Path]) -> Dataset:
     """
     get PROTEINS dataset
@@ -65,6 +75,16 @@ def get_enzymes(dataset_root: Union[str, Path]) -> Dataset:
     :return: the dataset object
     """
     dataset_name = 'ENZYMES'
+    return get_dataset(dataset_name, dataset_root)
+
+
+def get_yeast(dataset_root: Union[str, Path]) -> Dataset:
+    """
+    get YEAST dataset
+    :param dataset_root: root folder of the datasets
+    :return: the dataset object
+    """
+    dataset_name = 'YEAST'
     return get_dataset(dataset_name, dataset_root)
 
 
