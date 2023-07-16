@@ -84,7 +84,7 @@ def get_yeast(dataset_root: Union[str, Path]) -> Dataset:
     :param dataset_root: root folder of the datasets
     :return: the dataset object
     """
-    dataset_name = 'YEAST'
+    dataset_name = 'Yeast'
     return get_dataset(dataset_name, dataset_root)
 
 
