@@ -88,6 +88,16 @@ def get_yeast(dataset_root: Union[str, Path]) -> Dataset:
     return get_dataset(dataset_name, dataset_root)
 
 
+def get_ptc_fm(dataset_root: Union[str, Path]) -> Dataset:
+    """
+    get PTC_FM dataset
+    :param dataset_root: root folder of the datasets
+    :return: the dataset object
+    """
+    dataset_name = 'PTC_FM'
+    return get_dataset(dataset_name, dataset_root)
+
+
 def get_zinc(dataset_root: Union[str, Path]) -> Dataset:
     """
     get ZINC dataset
