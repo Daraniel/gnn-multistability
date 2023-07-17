@@ -22,7 +22,6 @@ from evaluation import feature_space_linear_cka
 from evaluation.cca import get_cca
 from evaluation.procrustes import get_procrustes
 from evaluation.rashomon_capacity import compute_capacity
-from evaluation.rsa import get_rsa_cos, get_rsa_corr
 
 log = logging.getLogger(__name__)
 
@@ -148,11 +147,13 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
     # )
 
     # Rashomon capacity experiment
+    log.info(f"Starting Rashomon Capacity computation.")
     rashomon_capacity = compute_capacity(np.array([x.numpy() for x in outputs_test]), epsilon=1e-12)
+    log.info(f"Finished Rashomon Capacity computation.")
 
-    if figures_dir is not None and figures_dir.is_dir():
-        figurepath = Path(figures_dir, "rashomon_capacity.jpg")
-
+    if not os.path.exists(os.path.dirname(figures_dir)):
+        os.makedirs(figures_dir)
+    figurepath = Path(figures_dir, "rashomon_capacity.jpg")
     plots.node_stability.save_pairwise_instability_distribution(
         rashomon_capacity, savepath=figurepath
     )
@@ -191,12 +192,8 @@ def clean_list(lst: List[Any], items_to_remove: List[Any]) -> None:
             lst.remove(item)
 
 
-def save_heatmap(
-        ids: Tuple[str, str],
-        ticklabels: Tuple[List[float], List[float]],
-        vals: np.ndarray,
-        split: str = "",
-) -> None:
+def save_heatmap(ids: Tuple[str, str], ticklabels: Tuple[List[float], List[float]], vals: np.ndarray, split: str = "") \
+        -> None:
     """Save a heatmap of CKA values
 
     Args:
