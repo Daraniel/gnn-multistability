@@ -93,7 +93,8 @@ def inner_loop(activations_root, calculating_function_name, cka_dir, function_to
                seed_pair, split_name):
     # seed_pair, split_name, i):
     with warnings.catch_warnings():
-        warnings.simplefilter(action='ignore', category=FutureWarning)
+        # warnings.simplefilter(action='ignore', category=FutureWarning)
+        warnings.simplefilter(action='ignore', category=Warning)
 
         # 1. Extract all filenames related to saved activations and sort them so
         # plots using them have a fixed structure
