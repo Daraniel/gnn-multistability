@@ -76,7 +76,7 @@ def blahut_arimoto(Pygw, log_base=2, epsilon=1e-12, max_iter=1e3):
 def compute_capacity(likelihood, log_base=2, epsilon=1e-12, max_iter=1e3):
     # m, n, c = likelihood.shape[0], likelihood.shape[1], likelihood.shape[2]
     n, m, c = likelihood.shape[0], likelihood.shape[1], likelihood.shape[2]
-    cores = multiprocessing.cpu_count() - 1
+    cores = min(16, multiprocessing.cpu_count() - 1)
     it = iter(range(n))
     ln = list(iter(lambda: tuple(islice(it, 1)), ()))  # list of indices
     # compute in parallel
