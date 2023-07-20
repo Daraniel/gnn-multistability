@@ -39,11 +39,12 @@ def save_class_prevalence_plots(
     # _, counts = y_true[test_idx].unique(sorted=True, return_counts=True)
     # prevs["gt"] = counts.numpy()
     # noinspection PyBroadException
-    try:
-        prevs["gt"] = y_true.unique(sorted=True, return_counts=True)
-        prevs["std_scaled"] = prevs["std"] / prevs["gt"]
-    except Exception:
-        prevs["std_scaled"] = prevs["std"]
+    # try:
+    #     prevs["gt"] = y_true.unique(sorted=True, return_counts=True)
+    #     prevs["std_scaled"] = prevs["std"] / prevs["gt"]
+    # except Exception:
+    prevs["gt"] = 1
+    prevs["std_scaled"] = prevs["std"]
 
     facet_size = 5  # inch (?)
     fig, axes = plt.subplots(1, 3, figsize=(3 * facet_size, facet_size))

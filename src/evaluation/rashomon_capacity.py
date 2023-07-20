@@ -11,6 +11,7 @@ import numpy as np
 
 log = logging.getLogger(__name__)
 
+
 def blahut_arimoto(Pygw, log_base=2, epsilon=1e-12, max_iter=1e3):
     """
     Performs the Blahut-Arimoto algorithm to compute the channel capacity
@@ -73,34 +74,40 @@ def blahut_arimoto(Pygw, log_base=2, epsilon=1e-12, max_iter=1e3):
     return capacity, r, cnt + 1
 
 
-def compute_capacity(likelihood, log_base=2, epsilon=1e-12, max_iter=1e3):
+def compute_capacity(likelihood, log_base=2, epsilon=1e-12, max_iter=1e3, multiprocess=False):
     # m, n, c = likelihood.shape[0], likelihood.shape[1], likelihood.shape[2]
     n, m, c = likelihood.shape[0], likelihood.shape[1], likelihood.shape[2]
     cores = min(8, multiprocessing.cpu_count() - 1)
     it = iter(range(n))
     ln = list(iter(lambda: tuple(islice(it, 1)), ()))  # list of indices
-    # compute in parallel
-    cvals = SimpleNamespace(_value=[None])
-    timeout_seconds = 1200  # HINT: start with small wait time to prevent getting stuck due to error
-    max_tries = 50
-    for i in range(max_tries):
-        with Pool(cores) as p:
-            condition = Condition()
-            condition.acquire()
-            # cvals = (p.map(blahut_arimoto, [likelihood[:, ix, :].reshape((m, c)) for ix in ln]))
-            cvals = (p.map_async(partial(blahut_arimoto, log_base=log_base, epsilon=epsilon, max_iter=max_iter),
-                                 [likelihood[ix] for ix in ln]))
-            cvals.wait(timeout_seconds)
-            p.terminate()
-            if None not in cvals._value:
-                break
-            log.warning("timeout in calculating rashomon capacity, retrying")
-            timeout_seconds *= 3  # HINT: increase wait time
-    if None in cvals._value:
-        log.error("Failed to calculate rashomon capacity")
-        return []
-    capacity = np.array([v[0] for v in cvals._value])
-    return capacity
+    if multiprocess:
+        # compute in parallel
+        cvals = SimpleNamespace(_value=[None])
+        timeout_seconds = 1200  # HINT: start with small wait time to prevent getting stuck due to error
+        max_tries = 50
+        for i in range(max_tries):
+            with Pool(cores) as p:
+                condition = Condition()
+                condition.acquire()
+                # cvals = (p.map(blahut_arimoto, [likelihood[:, ix, :].reshape((m, c)) for ix in ln]))
+                cvals = (p.map_async(partial(blahut_arimoto, log_base=log_base, epsilon=epsilon, max_iter=max_iter),
+                                     [likelihood[ix] for ix in ln]))
+                cvals.wait(timeout_seconds)
+                p.terminate()
+                if None not in cvals._value:
+                    break
+                log.warning("timeout in calculating rashomon capacity, retrying")
+                timeout_seconds *= 3  # HINT: increase wait time
+        if None in cvals._value:
+            log.error("Failed to calculate rashomon capacity")
+            return []
+        capacity = np.array([v[0] for v in cvals._value])
+        return capacity
+    else:
+        cvals = (map(partial(blahut_arimoto, log_base=log_base, epsilon=epsilon, max_iter=max_iter),
+                     [likelihood[ix] for ix in ln]))
+        capacity = np.array([v[0] for v in cvals])
+        return capacity
 
 # def compute_capacity2(likelihood):
 #     m, n, c = likelihood.shape[0], likelihood.shape[1], likelihood.shape[2]

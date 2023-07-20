@@ -148,7 +148,8 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
 
     # Rashomon capacity experiment
     log.info(f"Starting Rashomon Capacity computation.")
-    rashomon_capacity = compute_capacity(np.array([x.numpy() for x in outputs_test]), epsilon=1e-12)
+    rashomon_capacity = compute_capacity(np.array([x.numpy() for x in outputs_test]), epsilon=1e-12, multiprocess=False,
+                                         max_iter=200)
     log.info(f"Finished Rashomon Capacity computation.")
 
     if not os.path.exists(os.path.dirname(figures_dir)):
