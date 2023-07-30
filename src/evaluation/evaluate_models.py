@@ -257,18 +257,19 @@ def classification_stability_experiments(cfg: DictConfig, predictions_dir: Path,
         prevalences_path = Path(predictions_dir, "prevalences.csv")
         pd.DataFrame.from_records(preval_df).to_csv(prevalences_path)
         # todo: update
+        dataset_name = cfg.dataset if isinstance(cfg.dataset, str) else cfg.dataset.name
         plots.save_class_prevalence_plots(
             test_dataset[0].y,  # type:ignore
             # split_idx["test"],
             prevalences_path=prevalences_path,
             savepath=figures_dir,
-            dataset_name=cfg.dataset.name,
+            dataset_name=dataset_name,
         )
         plots.save_node_instability_distribution(
             # split_idx["test"],
             prediction_distr_path=nodewise_distr_path,
             savepath=figures_dir,
-            dataset_name=cfg.dataset.name,
+            dataset_name=dataset_name,
         )
 
     # Compare the model output distributions to the prediction distribution

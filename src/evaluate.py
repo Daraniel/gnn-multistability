@@ -32,7 +32,7 @@ def main(instance_path: str):
     if cfg.store_activations:
         activations_root = cfg.store_activations
     else:
-        activations_root = ''
+        activations_root = None
 
     activations_root, dataset, figures_dir, predictions_dir, cka_dir = setup_project(cfg, activations_root, log,
                                                                                      make_directories=False)
