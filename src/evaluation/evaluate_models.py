@@ -22,6 +22,7 @@ from evaluation import feature_space_linear_cka
 from evaluation.cca import get_cca
 from evaluation.procrustes import get_procrustes
 from evaluation.rashomon_capacity import compute_capacity
+from evaluation.rsa import get_rsa_cos
 
 log = logging.getLogger(__name__)
 
@@ -97,17 +98,17 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
             multi_process=False,
         )
 
-        # # RSA experiments
-        # run_experiments_with_function(
-        #     cfg=cfg,
-        #     figures_dir=figures_dir,
-        #     predictions_dir=predictions_dir,
-        #     cka_dir=cka_dir,
-        #     activations_root=activations_root,
-        #     function_to_use=get_rsa_cos,
-        #     calculating_function_name="rsa_cos",
-        #     multi_process=True,
-        # )
+        # RSA experiments
+        run_experiments_with_function(
+            cfg=cfg,
+            figures_dir=figures_dir,
+            predictions_dir=predictions_dir,
+            cka_dir=cka_dir,
+            activations_root=activations_root,
+            function_to_use=get_rsa_cos,
+            calculating_function_name="rsa_cos",
+            multi_process=True,
+        )
         # run_experiments_with_function(
         #     cfg=cfg,
         #     figures_dir=figures_dir,
