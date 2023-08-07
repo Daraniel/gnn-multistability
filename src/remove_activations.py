@@ -19,6 +19,7 @@ def main(instance_path: str, start_index: int, end_index: int):
         os.chdir(f'{i}')
         _, dirnames, _ = next(os.walk(os.getcwd(), ))
         for seed_dir in dirnames:
+            print(seed_dir)
             if seed_dir.isdigit():
                 for fname in os.listdir(Path(os.getcwd(), seed_dir)):
                     if fname != "checkpoint.pt":
