@@ -4,11 +4,6 @@ import os
 import sys
 from pathlib import Path
 
-import yaml
-from omegaconf import DictConfig
-
-from common.utils import setup_project, get_directories
-
 log = logging.getLogger(__name__)
 
 
@@ -22,29 +17,10 @@ def main(instance_path: str, start_index: int, end_index: int):
     os.chdir(instance_path)
     for i in range(start_index, end_index):
         os.chdir(f'{i}')
-        with open('.hydra/config.yaml', 'r') as f:
-            cfg = yaml.safe_load(f)
-        with open('.hydra/overrides.yaml', 'r') as f:
-            overrides = yaml.safe_load(f)
-
-        # replace the values of the original config with the override values
-        for item in overrides:
-            key, value = item.split('=')
-            cfg[key] = value
-        cfg = DictConfig(cfg)
-
-        if cfg.store_activations:
-            activations_root = cfg.store_activations
-        else:
-            activations_root = None
-
-        activations_root, _, _, _, _ = get_directories(cfg, activations_root,  make_directories=False)
         _, dirnames, _ = next(os.walk(os.getcwd(), ))
         print(dirnames)
         for seed_dir in dirnames:
-            print(Path(os.getcwd(), seed_dir))
-            print(Path(activations_root, seed_dir))
-            for fname in os.listdir(Path(activations_root, seed_dir)):
+            for fname in os.listdir(Path(os.getcwd(), seed_dir)):
                 print(fname)
                 # if fname != "checkpoint.pt":
                 #     os.remove(fname)
