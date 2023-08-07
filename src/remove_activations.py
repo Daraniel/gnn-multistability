@@ -40,10 +40,13 @@ def main(instance_path: str, start_index: int, end_index: int):
 
         activations_root, _, _, _, _ = get_directories(cfg, activations_root,  make_directories=False)
         _, dirnames, _ = next(os.walk(os.getcwd(), ))
+        print(dirnames)
         for seed_dir in dirnames:
+            print(seed_dir)
             for fname in os.listdir(Path(activations_root, seed_dir)):
-                if fname != "checkpoint.pt":
-                    os.remove(fname)
+                print(fname)
+                # if fname != "checkpoint.pt":
+                #     os.remove(fname)
 
         os.chdir('..')
     log.info("Process finished successfully")
