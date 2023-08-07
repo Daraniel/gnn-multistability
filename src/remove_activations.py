@@ -18,7 +18,6 @@ def main(instance_path: str, start_index: int, end_index: int):
     for i in range(start_index, end_index):
         os.chdir(f'{i}')
         _, dirnames, _ = next(os.walk(os.getcwd(), ))
-        print(dirnames)
         for seed_dir in dirnames:
             for fname in os.listdir(Path(os.getcwd(), seed_dir)):
                 if fname != "checkpoint.pt":
