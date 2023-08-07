@@ -22,7 +22,7 @@ def main(instance_path: str, start_index: int, end_index: int):
         for seed_dir in dirnames:
             for fname in os.listdir(Path(os.getcwd(), seed_dir)):
                 if fname != "checkpoint.pt":
-                    os.remove(fname)
+                    os.remove(Path(Path(os.getcwd(), seed_dir), fname))
 
         os.chdir('..')
     log.info("Process finished successfully")
