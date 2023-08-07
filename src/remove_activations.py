@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 from omegaconf import DictConfig
 
-from common.utils import setup_project
+from common.utils import setup_project, get_directories
 
 log = logging.getLogger(__name__)
 
@@ -38,8 +38,7 @@ def main(instance_path: str, start_index: int, end_index: int):
         else:
             activations_root = None
 
-        activations_root, dataset, figures_dir, predictions_dir, cka_dir = setup_project(cfg, activations_root, log,
-                                                                                         make_directories=False)
+        activations_root, _, _, _, _ = get_directories(cfg, activations_root,  make_directories=False)
         _, dirnames, _ = next(os.walk(os.getcwd(), ))
         for seed_dir in dirnames:
             for fname in os.listdir(Path(activations_root, seed_dir)):
