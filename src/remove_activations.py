@@ -2,13 +2,12 @@ import argparse
 import logging
 import os
 import sys
-from typing import List
+from pathlib import Path
 
 import yaml
 from omegaconf import DictConfig
 
 from common.utils import setup_project
-from evaluation.evaluate_models import evaluate_models
 
 log = logging.getLogger(__name__)
 
@@ -41,20 +40,11 @@ def main(instance_path: str, start_index: int, end_index: int):
 
         activations_root, dataset, figures_dir, predictions_dir, cka_dir = setup_project(cfg, activations_root, log,
                                                                                          make_directories=False)
-
-        fnames: List[List[float]] = []
-        for seed_dir in seed_pair:
-            assert isinstance(seed_dir, str)
-            fnames.append(
-                sorted(
-                    (
-                        float(fname.removesuffix(".pt"))
-                        for fname in os.listdir(Path(activations_root, seed_dir))
-                        if fname != "checkpoint.pt"
-                    )
-                )
-            )
-
+        _, dirnames, _ = next(os.walk(os.getcwd(), ))
+        for seed_dir in dirnames:
+            for fname in os.listdir(Path(activations_root, seed_dir)):
+                if fname != "checkpoint.pt":
+                    os.remove(fname)
 
         os.chdir('..')
     log.info("Process finished successfully")
