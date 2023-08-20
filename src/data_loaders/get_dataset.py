@@ -16,6 +16,8 @@ DATASETS = {
     'aids': tu.get_aids,
     'enzymes': tu.get_enzymes,
     'ptc_fm': tu.get_ptc_fm,
+    'proteins': tu.get_proteins,
+
     'yeast': tu.get_yeast,  # this dataset is too big and training on it is too slow
 
     'arxiv': ogb.get_ogbn_arxiv,
@@ -24,10 +26,12 @@ DATASETS = {
     'citation2': ogb.get_ogbl_citation2,
     'collab': ogb.get_ogbl_collab,
     'ppa': ogb.get_ogbl_ppa,
-    'proteins': tu.get_proteins,
+
+    # graph regression
     'alchemy': tu.get_alchemy,
     'zinc': tu.get_zinc,
     'qm9': tu.get_qm9,
+    'salicylic_acid': tu.get_salicylic_acid,
 }
 
 

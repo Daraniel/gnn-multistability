@@ -61,44 +61,45 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
         evals=evals,
     )
 
-    if 'train_acc' in evals[0].keys():  # HINT: only run for classification tasks
-        # CKA experiment
-        run_experiments_with_function(
-            cfg=cfg,
-            figures_dir=figures_dir,
-            predictions_dir=predictions_dir,
-            cka_dir=cka_dir,
-            activations_root=activations_root,
-            function_to_use=feature_space_linear_cka,
-            calculating_function_name="CKA",
-            multi_process=False,
-        )
+    # CKA experiment
+    run_experiments_with_function(
+        cfg=cfg,
+        figures_dir=figures_dir,
+        predictions_dir=predictions_dir,
+        cka_dir=cka_dir,
+        activations_root=activations_root,
+        function_to_use=feature_space_linear_cka,
+        calculating_function_name="CKA",
+        multi_process=False,
+    )
 
-        # CCA experiment
-        run_experiments_with_function(
-            cfg=cfg,
-            figures_dir=figures_dir,
-            predictions_dir=predictions_dir,
-            cka_dir=cka_dir,
-            activations_root=activations_root,
-            function_to_use=get_cca,
-            calculating_function_name="CCA",
-            multi_process=False,
-        )
+    # CCA experiment
+    run_experiments_with_function(
+        cfg=cfg,
+        figures_dir=figures_dir,
+        predictions_dir=predictions_dir,
+        cka_dir=cka_dir,
+        activations_root=activations_root,
+        function_to_use=get_cca,
+        calculating_function_name="CCA",
+        multi_process=False,
+    )
 
-        # procrustes experiment
-        run_experiments_with_function(
-            cfg=cfg,
-            figures_dir=figures_dir,
-            predictions_dir=predictions_dir,
-            cka_dir=cka_dir,
-            activations_root=activations_root,
-            function_to_use=get_procrustes,
-            calculating_function_name="procrustes",
-            multi_process=False,
-        )
+    # procrustes experiment
+    run_experiments_with_function(
+        cfg=cfg,
+        figures_dir=figures_dir,
+        predictions_dir=predictions_dir,
+        cka_dir=cka_dir,
+        activations_root=activations_root,
+        function_to_use=get_procrustes,
+        calculating_function_name="procrustes",
+        multi_process=False,
+    )
 
-        # RSA experiments
+    # RSA experiments
+    # noinspection PyProtectedMember
+    try:
         run_experiments_with_function(
             cfg=cfg,
             figures_dir=figures_dir,
@@ -109,16 +110,20 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
             calculating_function_name="rsa_cos",
             multi_process=True,
         )
-        # run_experiments_with_function(
-        #     cfg=cfg,
-        #     figures_dir=figures_dir,
-        #     predictions_dir=predictions_dir,
-        #     cka_dir=cka_dir,
-        #     activations_root=activations_root,
-        #     function_to_use=get_rsa_corr,
-        #     calculating_function_name="rsa_corr",
-        #     multi_process=True,
-        # )
+    except np.core._exceptions._ArrayMemoryError:
+        # HINT: if we can't calculate one RSA with float 16, totally skip RSA
+        log.error("Unable to allocate memory error in calculating RSA, retry with float 16 failed, skipping RSA")
+
+    # run_experiments_with_function(
+    #     cfg=cfg,
+    #     figures_dir=figures_dir,
+    #     predictions_dir=predictions_dir,
+    #     cka_dir=cka_dir,
+    #     activations_root=activations_root,
+    #     function_to_use=get_rsa_corr,
+    #     calculating_function_name="rsa_corr",
+    #     multi_process=True,
+    # )
     # run_experiments_with_function(
     #     cfg=cfg,
     #     figures_dir=figures_dir,

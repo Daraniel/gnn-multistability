@@ -46,11 +46,12 @@ def setup_project(cfg: DictConfig, activations_root: Optional[Union[str, Path]],
     #     part_val=cfg.part_val,
     #     part_test=cfg.part_test,
     # )
-    logger.info("Loading dataset")
     if isinstance(cfg.dataset, str):
-        dataset = get_dataset(dataset_name=cfg.dataset, dataset_root=dataset_dir)
+        dataset_name = cfg.dataset
     else:
-        dataset = get_dataset(dataset_name=cfg.dataset.name, dataset_root=dataset_dir)
+        dataset_name = cfg.dataset.name
+    logger.info(f"Loading dataset {dataset_name}")
+    dataset = get_dataset(dataset_name=dataset_name, dataset_root=dataset_dir)
     logger.info("Dataset loaded and configuration completed")
     return activations_root, dataset, figures_dir, predictions_dir, cka_dir
 
