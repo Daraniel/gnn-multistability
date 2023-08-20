@@ -31,8 +31,9 @@ DATASETS = {
     'alchemy': tu.get_alchemy,
     'aspirin': tu.get_aspirin,
     'qm9': tu.get_qm9,
-    'naphthalene': tu.get_naphthalene,
+    'toluene': tu.get_toluene,
 
+    'naphthalene': tu.get_naphthalene,
     'salicylic_acid': tu.get_salicylic_acid,
     'zinc': tu.get_zinc,  # this dataset is huge and training on it needs a ton of VRAM or batching
 

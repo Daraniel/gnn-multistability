@@ -138,6 +138,16 @@ def get_qm9(dataset_root: Union[str, Path]) -> Dataset:
     return get_dataset(dataset_name, dataset_root)
 
 
+def get_toluene(dataset_root: Union[str, Path]) -> Dataset:
+    """
+    get toluene dataset
+    :param dataset_root: root folder of the datasets
+    :return: the dataset object
+    """
+    dataset_name = 'toluene'
+    return get_dataset(dataset_name, dataset_root)
+
+
 def get_naphthalene(dataset_root: Union[str, Path]) -> Dataset:
     """
     get naphthalene dataset
