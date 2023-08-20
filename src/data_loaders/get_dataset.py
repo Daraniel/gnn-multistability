@@ -10,9 +10,11 @@ import data_loaders.ogb_data_loader as ogb
 import data_loaders.tudataset_data_loader as tu
 from common.exceptions import DataWorkflowException
 
+# HINT: when adding a single class regression dataset, also add the dataset to SINGLE_VALUE_REGRESSION_DATASETS set
+# defined below
 DATASETS = {
     # graph classification
-    # 'imdb_binary': tu.get_imdb_binary,  # dataset is disabled because it is missing X values
+    # 'imdb_binary': tu.get_imdb_binary, # dataset is disabled because it is missing X values
     'aids': tu.get_aids,
     'enzymes': tu.get_enzymes,
     'ptc_fm': tu.get_ptc_fm,
@@ -38,6 +40,8 @@ DATASETS = {
     'zinc': tu.get_zinc,  # this dataset is huge and training on it needs a ton of VRAM or batching
 
 }
+
+SINGLE_VALUE_REGRESSION_DATASETS = {'aspirin', 'toluene', 'naphthalene', 'salicylic_acid'}
 
 
 def get_dataset(dataset_name: str, dataset_root: Union[str, Path]) -> Dict[str, Dataset]:

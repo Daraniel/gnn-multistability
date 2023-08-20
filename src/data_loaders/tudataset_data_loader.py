@@ -193,8 +193,12 @@ def split_dataset(dataset: TUDataset) -> Dict[str, Dataset]:
             mean, std = deg.mean().item(), deg.std().item()
             dataset.transform = NormalizedDegree(mean, std)
     # 70 train, 20 val, 10 test
-    train_index, test_index = train_test_split(range(len(dataset)), test_size=0.1)
+    train_index, test_index = train_test_split(range(len(dataset)//10), test_size=0.1)
     train_index, val_index = train_test_split(train_index, test_size=0.22)
+    # train = dataset[train_index]
+    # valid = dataset[val_index]
+    # test = dataset[test_index]
+
     train = dataset[train_index]
     valid = dataset[val_index]
     test = dataset[test_index]

@@ -19,6 +19,7 @@ from torch.nn import functional as F
 from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
+from data_loaders.get_dataset import SINGLE_VALUE_REGRESSION_DATASETS
 from models.gnn_models import get_model
 
 log = logging.getLogger(__name__)
@@ -128,7 +129,10 @@ def train_graph_classifier_model(cfg: DictConfig, train_dataset: Dataset, valid_
     log.info(f"Initializing model with seed={init_seed}")
     pl.seed_everything(init_seed)
 
-    model = get_model(cfg=cfg, in_dim=train_dataset.num_features, out_dim=train_dataset.num_classes)
+    output_shape = train_dataset.num_classes
+    if train_dataset.name in SINGLE_VALUE_REGRESSION_DATASETS:
+        output_shape = 1  # HINT: use one output for single value regression datasets
+    model = get_model(cfg=cfg, in_dim=train_dataset.num_features, out_dim=output_shape)
 
     log.info(f"Model has {count_parameters(model)} parameters ({count_parameters(model, trainable=True)} trainable).")
 
@@ -205,6 +209,9 @@ def train_model_once(model: torch.nn.Module, train_loader: DataLoader, optimizer
         out = model(data)
         if out.shape == data.y.shape:
             loss = criterion(out, data.y)
+        elif out.shape[0] == data.y.shape[0] and out.shape[1] == 1 and len(data.y.shape) == 1 and len(out.shape) == 2:
+            # HINT: y is flattened but not output
+            loss = criterion(out, data.y.view(out.shape))
         else:
             loss = criterion(out, data.y.view(-1))
         optimizer.zero_grad()
@@ -267,7 +274,12 @@ def evaluate(model: torch.nn.Module, train_dataloader: Optional[DataLoader] = No
                 if out.shape != data.y.shape:
                     results[f"{key}_acc"] = accuracy(y_pred.view(-1), data.y)
                 if criterion is not None:
-                    loss = criterion(out, data.y).item()
+                    if (out.shape[0] == data.y.shape[0] and out.shape[1] == 1
+                            and len(data.y.shape) == 1 and len(out.shape) == 2):
+                        # HINT: y is flattened but not output
+                        loss = criterion(out, data.y.view(out.shape)).item()
+                    else:
+                        loss = criterion(out, data.y).item()
                     results[f"{key}_loss"] = loss
                 break  # TODO: update to support dataloader that have more than one batch (are not full batch)
     return results
