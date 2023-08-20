@@ -118,6 +118,16 @@ def get_alchemy(dataset_root: Union[str, Path]) -> Dataset:
     return get_dataset(dataset_name, dataset_root)
 
 
+def get_aspirin(dataset_root: Union[str, Path]) -> Dataset:
+    """
+    get aspirin dataset
+    :param dataset_root: root folder of the datasets
+    :return: the dataset object
+    """
+    dataset_name = 'aspirin'
+    return get_dataset(dataset_name, dataset_root)
+
+
 def get_qm9(dataset_root: Union[str, Path]) -> Dataset:
     """
     get QM9 dataset

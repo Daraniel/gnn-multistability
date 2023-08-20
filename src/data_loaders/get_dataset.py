@@ -29,9 +29,12 @@ DATASETS = {
 
     # graph regression
     'alchemy': tu.get_alchemy,
-    'zinc': tu.get_zinc,
+    'aspirin': tu.get_aspirin,
     'qm9': tu.get_qm9,
     'salicylic_acid': tu.get_salicylic_acid,
+
+    'zinc': tu.get_zinc,  # this dataset is huge and training on it needs a ton of VRAM or batching
+
 }
 
 
