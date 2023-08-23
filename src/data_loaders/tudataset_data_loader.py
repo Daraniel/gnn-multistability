@@ -168,6 +168,16 @@ def get_salicylic_acid(dataset_root: Union[str, Path]) -> Dataset:
     return get_dataset(dataset_name, dataset_root)
 
 
+def get_uracil(dataset_root: Union[str, Path]) -> Dataset:
+    """
+    get uracil dataset
+    :param dataset_root: root folder of the datasets
+    :return: the dataset object
+    """
+    dataset_name = 'uracil'
+    return get_dataset(dataset_name, dataset_root)
+
+
 def split_dataset(dataset: TUDataset) -> Dict[str, Dataset]:
     """
     splits the given dataset to train, valid and test splits

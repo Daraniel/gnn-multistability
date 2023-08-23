@@ -31,18 +31,19 @@ DATASETS = {
 
     # graph regression
     'alchemy': tu.get_alchemy,
+    'toluene': tu.get_toluene,
+    'salicylic_acid': tu.get_salicylic_acid,
+    'uracil': tu.uracil,
+
     'aspirin': tu.get_aspirin,
     'qm9': tu.get_qm9,
-    'toluene': tu.get_toluene,
-
     'naphthalene': tu.get_naphthalene,
-    'salicylic_acid': tu.get_salicylic_acid,
     'zinc': tu.get_zinc,  # this dataset is huge and training on it needs a ton of VRAM or batching
 
 }
 
-REGRESSION_DATASETS = {'alchemy', 'aspirin', 'qm9', 'toluene', 'naphthalene', 'salicylic_acid', 'zinc'}
-SINGLE_VALUE_REGRESSION_DATASETS = {'aspirin', 'toluene', 'naphthalene', 'salicylic_acid'}
+REGRESSION_DATASETS = {'alchemy', 'aspirin', 'qm9', 'toluene', 'naphthalene', 'salicylic_acid', 'zinc', 'uracil'}
+SINGLE_VALUE_REGRESSION_DATASETS = {'aspirin', 'toluene', 'naphthalene', 'salicylic_acid', 'uracil'}
 
 
 def get_dataset(dataset_name: str, dataset_root: Union[str, Path]) -> Dict[str, Dataset]:
