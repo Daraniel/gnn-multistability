@@ -33,7 +33,7 @@ DATASETS = {
     'alchemy': tu.get_alchemy,
     'toluene': tu.get_toluene,
     'salicylic_acid': tu.get_salicylic_acid,
-    'uracil': tu.uracil,
+    'uracil': tu.get_uracil,
 
     'aspirin': tu.get_aspirin,
     'qm9': tu.get_qm9,
