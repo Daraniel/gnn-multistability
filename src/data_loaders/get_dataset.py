@@ -10,8 +10,8 @@ import data_loaders.ogb_data_loader as ogb
 import data_loaders.tudataset_data_loader as tu
 from common.exceptions import DataWorkflowException
 
-# HINT: when adding a single class regression dataset, also add the dataset to SINGLE_VALUE_REGRESSION_DATASETS set
-# defined below
+# HINT: when adding a regression dataset, also add the dataset to REGRESSION_DATASETS and if it is a single value
+# regression dataset, also add it to SINGLE_VALUE_REGRESSION_DATASETS sets defined below
 DATASETS = {
     # graph classification
     # 'imdb_binary': tu.get_imdb_binary, # dataset is disabled because it is missing X values
@@ -41,6 +41,7 @@ DATASETS = {
 
 }
 
+REGRESSION_DATASETS = {'alchemy', 'aspirin', 'qm9', 'toluene', 'naphthalene', 'salicylic_acid', 'zinc'}
 SINGLE_VALUE_REGRESSION_DATASETS = {'aspirin', 'toluene', 'naphthalene', 'salicylic_acid'}
 
 

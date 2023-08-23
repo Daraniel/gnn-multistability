@@ -19,19 +19,21 @@ from torch.nn import functional as F
 from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
+from common.utils import TaskType
 from data_loaders.get_dataset import SINGLE_VALUE_REGRESSION_DATASETS
 from models.gnn_models import get_model
 
 log = logging.getLogger(__name__)
 
 
-def train_models(cfg, activations_root, predictions_dir, dataset):
+def train_models(cfg, activations_root, predictions_dir, dataset, task_type: TaskType):
     """
     trains models with the given configuration on the given dataset and save their results to the predictions_dir
     :param cfg: project configuration
     :param activations_root: path to save the activations
     :param predictions_dir: path to save the predictions
     :param dataset: dataset to train on
+    :param task_type: type of task (e.g., regression, classification)
     """
     log.info("Training model")
 
@@ -46,11 +48,13 @@ def train_models(cfg, activations_root, predictions_dir, dataset):
         if cfg.keep_train_seed_constant:
             log.info(f"Training model {i + 1} out of {cfg.n_repeat} with seed {seed} (init_seed={init_seed}).")
             model, eval_results = train_graph_classifier_model(cfg, dataset['train'], dataset['valid'], dataset['test'],
-                                                               init_seed=init_seed, train_seed=seed)
+                                                               init_seed=init_seed, train_seed=seed,
+                                                               task_type=task_type)
         else:
             log.info(f"Training model {i + 1} out of {cfg.n_repeat} with seed {current_seed}.")
             model, eval_results = train_graph_classifier_model(cfg, dataset['train'], dataset['valid'], dataset['test'],
-                                                               init_seed=init_seed, train_seed=current_seed)
+                                                               init_seed=init_seed, train_seed=current_seed,
+                                                               task_type=task_type)
         evals.append(eval_results)
 
         # After training, save the activations of a model
@@ -97,7 +101,7 @@ def train_models(cfg, activations_root, predictions_dir, dataset):
             )
 
     # Some logging and simple heuristic to catch models that are far from optimally trained
-    suboptimal_models = find_suboptimal_models(evals)
+    suboptimal_models = find_suboptimal_models(evals, task_type=task_type)
     with open(Path(predictions_dir, "suboptimal_models.pkl"), "wb") as f:
         pickle.dump(suboptimal_models, f)
 
@@ -114,7 +118,8 @@ def train_models(cfg, activations_root, predictions_dir, dataset):
 
 
 def train_graph_classifier_model(cfg: DictConfig, train_dataset: Dataset, valid_dataset: Dataset, test_dataset: Dataset,
-                                 init_seed: int, train_seed: int) -> Tuple[torch.nn.Module, Dict[str, float]]:
+                                 init_seed: int, train_seed: int, task_type: TaskType) \
+        -> Tuple[torch.nn.Module, Dict[str, float]]:
     # Seeds are set later for training and initialization individually
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = False
@@ -145,7 +150,10 @@ def train_graph_classifier_model(cfg: DictConfig, train_dataset: Dataset, valid_
         path=Path(os.getcwd(), "checkpoint.pt"),
         trace_func=log.debug,
     )
-    criterion = torch.nn.CrossEntropyLoss()
+    if task_type == TaskType.REGRESSION:
+        criterion = torch.nn.MSELoss()
+    else:
+        criterion = torch.nn.CrossEntropyLoss()
     n_epochs = cfg.n_epochs
 
     model.to(device)
@@ -157,8 +165,8 @@ def train_graph_classifier_model(cfg: DictConfig, train_dataset: Dataset, valid_
     start = time.perf_counter()
     for e in range(n_epochs):
         train_loss = train_model_once(model, train_dataloader, optimizer, criterion)
-        eval_results = evaluate(model, train_dataloader, valid_dataloader, test_dataloader, criterion=criterion)
-        if 'train_acc' in eval_results.keys():
+        eval_results = evaluate(model, task_type, train_dataloader, valid_dataloader, test_dataloader, criterion=criterion)
+        if task_type == TaskType.CLASSIFICATION:
             log.info(
                 f"time={time.perf_counter() - start:.2f} epoch={e}: "
                 f"{train_loss=:.3f}, train_acc={eval_results['train_acc']:.2f}, "
@@ -181,8 +189,8 @@ def train_graph_classifier_model(cfg: DictConfig, train_dataset: Dataset, valid_
     log.info("Reverting to model with best val loss")
     if Path(early_stopper.path).exists():
         model.load_state_dict(torch.load(early_stopper.path))
-    eval_results = evaluate(model, train_dataloader, valid_dataloader, test_dataloader, criterion=criterion)
-    if 'train_acc' in eval_results.keys():
+    eval_results = evaluate(model, task_type, train_dataloader, valid_dataloader, test_dataloader, criterion=criterion)
+    if task_type == TaskType.CLASSIFICATION:
         log.info(
             f"train_loss={eval_results['train_loss']:.3f}, train_acc={eval_results['train_acc']:.2f}, "
             f"valid_loss={eval_results['valid_loss']:.3f}, valid_acc={eval_results['valid_acc']:.2f}, "
@@ -228,10 +236,10 @@ def num_graphs(data):
         return data.x.size(0)
 
 
-def find_suboptimal_models(evals: List[Dict[str, float]], allowed_deviation: int = 2) \
+def find_suboptimal_models(evals: List[Dict[str, float]], task_type: TaskType, allowed_deviation: int = 2) \
         -> Dict[str, List[Tuple[int, float]]]:
     results = {}
-    if 'train_acc' in evals[0].keys():
+    if task_type == TaskType.CLASSIFICATION:
         metric = "acc"
     else:
         metric = "loss"
@@ -259,9 +267,9 @@ def find_suboptimal_models(evals: List[Dict[str, float]], allowed_deviation: int
 
 
 @torch.no_grad()
-def evaluate(model: torch.nn.Module, train_dataloader: Optional[DataLoader] = None,
+def evaluate(model: torch.nn.Module, task_type: TaskType, train_dataloader: Optional[DataLoader] = None,
              valid_dataloader: Optional[DataLoader] = None, test_dataloader: Optional[DataLoader] = None,
-             criterion: Optional[torch.nn.Module] = None, ) -> Dict[str, float]:
+             criterion: Optional[torch.nn.Module] = None,) -> Dict[str, float]:
     model.eval()
     device = next(model.parameters()).device
     results = {}
@@ -271,7 +279,7 @@ def evaluate(model: torch.nn.Module, train_dataloader: Optional[DataLoader] = No
                 data = data.to(device)
                 out = model(data)
                 y_pred = out.argmax(dim=-1, keepdim=True)
-                if out.shape != data.y.shape:
+                if task_type == TaskType.CLASSIFICATION:
                     results[f"{key}_acc"] = accuracy(y_pred.view(-1), data.y)
                 if criterion is not None:
                     if (out.shape[0] == data.y.shape[0] and out.shape[1] == 1

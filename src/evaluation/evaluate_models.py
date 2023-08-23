@@ -18,6 +18,7 @@ from scipy.stats import entropy
 import evaluation.helper_functions
 import evaluation.predictions
 import plots
+from common.utils import TaskType
 from evaluation import feature_space_linear_cka
 from evaluation.cca import get_cca
 from evaluation.procrustes import get_procrustes
@@ -28,7 +29,7 @@ log = logging.getLogger(__name__)
 
 
 def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_geometric.data.Dataset],
-                    figures_dir: Path, predictions_dir: Path, cka_dir: Path) -> None:
+                    figures_dir: Path, predictions_dir: Path, cka_dir: Path, task_type: TaskType) -> None:
     """
     evaluate the specified model
     :param cfg: project configuration
@@ -37,6 +38,7 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
     :param figures_dir: location of the figures
     :param predictions_dir: location of the predictions
     :param cka_dir: location to store the cka analysis
+    :param task_type: type of task (e.g., regression, classification)
     """
     log.info("Evaluating models")
 
@@ -50,7 +52,7 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
         predictions = pickle.load(f)
 
     # todo: include other datasets
-    classification_stability_experiments(
+    stability_experiments(
         cfg=cfg,
         predictions_dir=predictions_dir,
         figures_dir=figures_dir,
@@ -59,6 +61,7 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
         logits_test=logits_test,
         test_dataset=dataset['test'],
         evals=evals,
+        task_type=task_type
     )
 
     # CKA experiment
@@ -230,16 +233,17 @@ def save_heatmap(ids: Tuple[str, str], ticklabels: Tuple[List[float], List[float
     plt.close()
 
 
-def classification_stability_experiments(cfg: DictConfig, predictions_dir: Path,
-                                         figures_dir: Path, predictions: List[torch.Tensor],
-                                         outputs_test: List[torch.Tensor], logits_test: List[torch.Tensor],
-                                         test_dataset: torch_geometric.data.Dataset, evals: List[Dict[str, float]]):
+def stability_experiments(cfg: DictConfig, predictions_dir: Path,
+                          figures_dir: Path, predictions: List[torch.Tensor],
+                          outputs_test: List[torch.Tensor], logits_test: List[torch.Tensor],
+                          test_dataset: torch_geometric.data.Dataset, evals: List[Dict[str, float]],
+                          task_type: TaskType):
     log.info("Calculating stability of predictions...")
 
     distr = evaluation.predictions.classification_node_distr(
         predictions, test_dataset.num_classes  # type:ignore
     )
-    if 'train_acc' in evals[0].keys():  # HINT: only run for classification tasks
+    if task_type == TaskType.CLASSIFICATION:
         preval_df = []
         nodewise_distr_path = Path(predictions_dir, f"nodewise_distr.npy")
 
@@ -339,7 +343,7 @@ def classification_stability_experiments(cfg: DictConfig, predictions_dir: Path,
     np.save(str(Path(predictions_dir, "pi_distr.npy")), pi_distr)
     log.info(f"pi_distr: {pi_distr}")
 
-    if 'train_acc' in evals[0].keys():
+    if task_type == TaskType.CLASSIFICATION:
         metric = "acc"
     else:
         metric = "loss"
@@ -363,7 +367,7 @@ def classification_stability_experiments(cfg: DictConfig, predictions_dir: Path,
     np.save(str(Path(predictions_dir, "l1_distr.npy")), l1_distr)
     log.info(f"l1_distr: {l1_distr}")
 
-    if 'train_acc' in evals[0].keys():  # HINT: only run for classification tasks
+    if task_type == TaskType.CLASSIFICATION:
         (
             true_diffs,
             false_diffs,

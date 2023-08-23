@@ -38,9 +38,9 @@ def main(instance_path: str, start_index: int, end_index: int):
         else:
             activations_root = None
 
-        activations_root, dataset, figures_dir, predictions_dir, cka_dir = setup_project(cfg, activations_root, log,
-                                                                                         make_directories=False)
-        evaluate_models(cfg, activations_root, dataset, figures_dir, predictions_dir, cka_dir)
+        activations_root, dataset, figures_dir, predictions_dir, cka_dir, task_type = setup_project(
+            cfg, activations_root, log, make_directories=False)
+        evaluate_models(cfg, activations_root, dataset, figures_dir, predictions_dir, cka_dir, task_type=task_type)
         os.chdir('..')
     log.info("Process finished successfully")
 

@@ -1,5 +1,6 @@
 import logging
 import os
+from enum import Enum
 from pathlib import Path
 from typing import Union, Any, Dict, Tuple, Optional
 
@@ -8,11 +9,17 @@ import torch
 from omegaconf import OmegaConf, DictConfig
 from torch_geometric.data import Dataset
 
-from data_loaders.get_dataset import get_dataset
+from data_loaders.get_dataset import get_dataset, REGRESSION_DATASETS
+
+
+class TaskType(Enum):
+    CLASSIFICATION = 0
+    REGRESSION = 1
 
 
 def setup_project(cfg: DictConfig, activations_root: Optional[Union[str, Path]], logger: logging.Logger,
-                  make_directories: bool = True) -> Tuple[Union[str, Any], Dict[str, Dataset], Path, Path, Path]:
+                  make_directories: bool = True) \
+        -> Tuple[Union[str, Any], Dict[str, Dataset], Path, Path, Path, TaskType]:
     """
     set up the project and handle the directories
     :param cfg: project configuration
@@ -53,7 +60,11 @@ def setup_project(cfg: DictConfig, activations_root: Optional[Union[str, Path]],
     logger.info(f"Loading dataset {dataset_name}")
     dataset = get_dataset(dataset_name=dataset_name, dataset_root=dataset_dir)
     logger.info("Dataset loaded and configuration completed")
-    return activations_root, dataset, figures_dir, predictions_dir, cka_dir
+    if dataset_name in REGRESSION_DATASETS:
+        task_type = TaskType.REGRESSION
+    else:
+        task_type = TaskType.CLASSIFICATION
+    return activations_root, dataset, figures_dir, predictions_dir, cka_dir, task_type
 
 
 def get_directories(cfg: DictConfig, activations_root: Optional[Union[str, Path]], make_directories: bool) \
@@ -88,4 +99,5 @@ def fix_seeds(seed: int):
     """
     pl.seed_everything(seed)
     # todo: fix the problem with warn only and remove it
-    torch.use_deterministic_algorithms(True, warn_only=True)  # https://docs.nvidia.com/cuda/cublas/index.html#cublasApi_reproducibility
+    torch.use_deterministic_algorithms(True,
+                                       warn_only=True)  # https://docs.nvidia.com/cuda/cublas/index.html#cublasApi_reproducibility
