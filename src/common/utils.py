@@ -9,7 +9,8 @@ import torch
 from omegaconf import OmegaConf, DictConfig
 from torch_geometric.data import Dataset
 
-from data_loaders.get_dataset import get_dataset, REGRESSION_DATASETS
+from data_loaders.get_dataset import get_dataset
+from data_loaders.tudataset_data_loader import REGRESSION_DATASETS
 
 
 class TaskType(Enum):
@@ -53,10 +54,7 @@ def setup_project(cfg: DictConfig, activations_root: Optional[Union[str, Path]],
     #     part_val=cfg.part_val,
     #     part_test=cfg.part_test,
     # )
-    if isinstance(cfg.dataset, str):
-        dataset_name = cfg.dataset
-    else:
-        dataset_name = cfg.dataset.name
+    dataset_name = get_dataset_name(cfg)
     logger.info(f"Loading dataset {dataset_name}")
     dataset = get_dataset(dataset_name=dataset_name, dataset_root=dataset_dir)
     logger.info("Dataset loaded and configuration completed")
@@ -65,6 +63,14 @@ def setup_project(cfg: DictConfig, activations_root: Optional[Union[str, Path]],
     else:
         task_type = TaskType.CLASSIFICATION
     return activations_root, dataset, figures_dir, predictions_dir, cka_dir, task_type
+
+
+def get_dataset_name(cfg):
+    if isinstance(cfg.dataset, str):
+        dataset_name = cfg.dataset
+    else:
+        dataset_name = cfg.dataset.name
+    return dataset_name
 
 
 def get_directories(cfg: DictConfig, activations_root: Optional[Union[str, Path]], make_directories: bool) \

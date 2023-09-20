@@ -3,6 +3,7 @@
 
 import json
 import logging
+import math
 import os
 import pickle
 import shutil
@@ -20,7 +21,7 @@ from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
 from common.utils import TaskType
-from data_loaders.get_dataset import SINGLE_VALUE_REGRESSION_DATASETS
+from data_loaders.tudataset_data_loader import SINGLE_VALUE_REGRESSION_DATASETS
 from models.gnn_models import get_model
 
 log = logging.getLogger(__name__)
@@ -158,7 +159,11 @@ def train_graph_classifier_model(cfg: DictConfig, train_dataset: Dataset, valid_
 
     model.to(device)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=train_dataset.__len__(), shuffle=False)
+    # use batch training for regression dataset since it's too big but full batch for other datasets that are small
+    if task_type == TaskType.REGRESSION:
+        train_dataloader = DataLoader(train_dataset, batch_size=math.ceil(train_dataset.__len__() / 16), shuffle=False)
+    else:
+        train_dataloader = DataLoader(train_dataset, batch_size=train_dataset.__len__(), shuffle=False)
     valid_dataloader = DataLoader(valid_dataset, batch_size=valid_dataset.__len__(), shuffle=False)
     test_dataloader = DataLoader(test_dataset, batch_size=test_dataset.__len__(), shuffle=False)
 
@@ -275,21 +280,30 @@ def evaluate(model: torch.nn.Module, task_type: TaskType, train_dataloader: Opti
     results = {}
     for key, dataloader in zip(["train", "valid", "test"], [train_dataloader, valid_dataloader, test_dataloader]):
         if dataloader is not None:
+            outputs = []
+            y_preds = []
+            ys = []
             for data in dataloader:
                 data = data.to(device)
                 out = model(data)
                 y_pred = out.argmax(dim=-1, keepdim=True)
-                if task_type == TaskType.CLASSIFICATION:
-                    results[f"{key}_acc"] = accuracy(y_pred.view(-1), data.y)
-                if criterion is not None:
-                    if (out.shape[0] == data.y.shape[0] and out.shape[1] == 1
-                            and len(data.y.shape) == 1 and len(out.shape) == 2):
-                        # HINT: y is flattened but not output
-                        loss = criterion(out, data.y.view(out.shape)).item()
-                    else:
-                        loss = criterion(out, data.y).item()
-                    results[f"{key}_loss"] = loss
-                break  # TODO: update to support dataloader that have more than one batch (are not full batch)
+                outputs.append(out.cpu().detach())
+                y_preds.append(y_pred.cpu().detach())
+                ys.append(data.y.cpu().detach())
+
+            outputs = torch.cat(outputs)
+            y_preds = torch.cat(y_preds)
+            ys = torch.cat(ys)
+            if task_type == TaskType.CLASSIFICATION:
+                results[f"{key}_acc"] = accuracy(y_preds.view(-1), ys)
+            if criterion is not None:
+                if (outputs.shape[0] == ys.shape[0] and outputs.shape[1] == 1
+                        and len(ys.shape) == 1 and len(outputs.shape) == 2):
+                    # HINT: y is flattened but not output
+                    loss = criterion(outputs, y_preds.view(outputs.shape)).item()
+                else:
+                    loss = criterion(outputs, y_preds).item()
+                results[f"{key}_loss"] = loss
     return results
 
 

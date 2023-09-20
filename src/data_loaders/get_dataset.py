@@ -11,7 +11,7 @@ import data_loaders.tudataset_data_loader as tu
 from common.exceptions import DataWorkflowException
 
 # HINT: when adding a regression dataset, also add the dataset to REGRESSION_DATASETS and if it is a single value
-# regression dataset, also add it to SINGLE_VALUE_REGRESSION_DATASETS sets defined below
+# regression dataset, also add it to SINGLE_VALUE_REGRESSION_DATASETS sets defined in tudataset_data_loader.py file
 DATASETS = {
     # graph classification
     # 'imdb_binary': tu.get_imdb_binary, # dataset is disabled because it is missing X values
@@ -41,9 +41,6 @@ DATASETS = {
     'zinc': tu.get_zinc,  # this dataset is huge and training on it needs a ton of VRAM or batching
 
 }
-
-REGRESSION_DATASETS = {'alchemy', 'aspirin', 'qm9', 'toluene', 'naphthalene', 'salicylic_acid', 'zinc', 'uracil'}
-SINGLE_VALUE_REGRESSION_DATASETS = {'aspirin', 'toluene', 'naphthalene', 'salicylic_acid', 'uracil'}
 
 
 def get_dataset(dataset_name: str, dataset_root: Union[str, Path]) -> Dict[str, Dataset]:

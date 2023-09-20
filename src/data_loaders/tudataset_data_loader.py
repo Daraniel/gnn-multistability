@@ -11,6 +11,9 @@ from torch_geometric.utils import degree
 
 from common.exceptions import DataWorkflowException
 
+REGRESSION_DATASETS = {'alchemy', 'aspirin', 'qm9', 'toluene', 'naphthalene', 'salicylic_acid', 'zinc', 'uracil'}
+SINGLE_VALUE_REGRESSION_DATASETS = {'aspirin', 'toluene', 'naphthalene', 'salicylic_acid', 'uracil'}
+
 
 class NormalizedDegree(object):
     def __init__(self, mean, std):
@@ -202,13 +205,21 @@ def split_dataset(dataset: TUDataset) -> Dict[str, Dataset]:
             deg = torch.cat(degs, dim=0).to(torch.float)
             mean, std = deg.mean().item(), deg.std().item()
             dataset.transform = NormalizedDegree(mean, std)
-    # 70 train, 20 val, 10 test
-    train_index, test_index = train_test_split(range(len(dataset)), test_size=0.1)
-    train_index, val_index = train_test_split(train_index, test_size=0.22)
-    # train = dataset[train_index]
-    # valid = dataset[val_index]
-    # test = dataset[test_index]
 
+    dataset_length = len(dataset)
+    if dataset.name in REGRESSION_DATASETS:
+        # 70% train, 5000 instances test, rest for val, this is done since regression datasets are too big and we
+        # want fast evaluation
+        test_size = 5000
+        train_size = dataset_length * 70 // 100
+        dataset_length_after_test = dataset_length - test_size
+        valid_size = (dataset_length_after_test - train_size) / dataset_length_after_test
+        train_index, test_index = train_test_split(range(dataset_length), test_size=test_size / dataset_length)
+        train_index, val_index = train_test_split(train_index, test_size=valid_size)
+    else:
+        # 70% train, 20% val, 10% test
+        train_index, test_index = train_test_split(range(dataset_length), test_size=0.1)
+        train_index, val_index = train_test_split(train_index, test_size=0.22)
     train = dataset[train_index]
     valid = dataset[val_index]
     test = dataset[test_index]
