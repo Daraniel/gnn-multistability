@@ -163,8 +163,8 @@ def train_graph_classifier_model(cfg: DictConfig, train_dataset: Dataset, valid_
 
     # use batch training for regression dataset since it's too big but full batch for other datasets that are small
     if task_type == TaskType.REGRESSION:
-        train_dataloader = DataLoader(train_dataset, batch_size=math.ceil(train_dataset.__len__() / 32), shuffle=False)
-        valid_dataloader = DataLoader(valid_dataset, batch_size=math.ceil(valid_dataset.__len__() / 32), shuffle=False)
+        train_dataloader = DataLoader(train_dataset, batch_size=math.ceil(train_dataset.__len__() / 128), shuffle=False)
+        valid_dataloader = DataLoader(valid_dataset, batch_size=math.ceil(valid_dataset.__len__() / 128), shuffle=False)
 
     else:
         train_dataloader = DataLoader(train_dataset, batch_size=train_dataset.__len__(), shuffle=False)
