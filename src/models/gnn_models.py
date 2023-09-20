@@ -27,7 +27,8 @@ class GNNBaseModel(torch.nn.Module, abc.ABC):
 
 # based on https://github.com/rusty1s/pytorch_geometric/blob/master/benchmark/kernel/gin.py
 class GIN(GNNBaseModel):
-    def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float, **kwargs):
+    def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
+                 is_regression: bool, **kwargs):
         super(GIN, self).__init__()
         # self.conv1 = GINConv(ModuleDict(
         #     {
@@ -69,6 +70,7 @@ class GIN(GNNBaseModel):
         self.lin1 = Linear(hidden_dim, hidden_dim)
         self.lin2 = Linear(hidden_dim, out_dim)
         self.dropout_p = dropout_p
+        self.is_regression = is_regression
 
     def reset_parameters(self):
         self.conv1.reset_parameters()
@@ -87,7 +89,10 @@ class GIN(GNNBaseModel):
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
         x = self.lin2(x)
-        return F.log_softmax(x, dim=-1)
+        if self.is_regression:
+            return x
+        else:
+            return F.log_softmax(x, dim=-1)
 
     def __repr__(self):
         return self.__class__.__name__
@@ -110,7 +115,7 @@ class GIN(GNNBaseModel):
             temp_x = layer.nn.act2(temp_x)
             hs[f"{i}.0"] = temp_x  # HINT: save the value of the second activation function of each GIN layer
 
-            # x = layer["bn"](x)  # HINT: we can ignore the value of the batch normalization since it's not needed
+            # x = layer["bn"](x) # HINT: we can ignore the value of the batch normalization since it's not needed
             x = layer(x, edge_index)  # HINT: get the result of the whole GIN layer, so we can feed it to the next layer
         hs[f"{len(self.convs)}.0"] = F.relu(self.lin1(x))
 
@@ -120,7 +125,7 @@ class GIN(GNNBaseModel):
 # based on https://github.com/mklabunde/gnn-prediction-instability/blob/main/src/models/gnn.py
 class GAT2017(GNNBaseModel):
     def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
-                 n_heads: int, n_output_heads: int, **kwargs) -> None:
+                 n_heads: int, n_output_heads: int, is_regression: bool, **kwargs) -> None:
         super().__init__()
         if num_layers < 2:
             raise ValueError(f"n_layers must be larger or equal to 2: {num_layers=}")
@@ -169,6 +174,7 @@ class GAT2017(GNNBaseModel):
         self.lin1 = Linear(hidden_dim, hidden_dim)
         self.lin2 = Linear(hidden_dim, out_dim)
         self.dropout_p = dropout_p
+        self.is_regression = is_regression
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
@@ -182,7 +188,10 @@ class GAT2017(GNNBaseModel):
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
         x = self.lin2(x)
-        return F.log_softmax(x, dim=-1)
+        if self.is_regression:
+            return x
+        else:
+            return F.log_softmax(x, dim=-1)
 
     def activations(self, data):
         hs = {}
@@ -201,7 +210,8 @@ class GAT2017(GNNBaseModel):
 
 # based on https://github.com/mklabunde/gnn-prediction-instability/blob/main/src/models/gnn.py
 class GCN2017(GNNBaseModel):
-    def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float, **kwargs) -> None:
+    def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
+                 is_regression: bool, **kwargs) -> None:
         super().__init__()
         if num_layers < 2:
             raise ValueError(f"n_layers must be larger or equal to 2: {num_layers=}")
@@ -242,7 +252,10 @@ class GCN2017(GNNBaseModel):
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
         x = self.lin2(x)
-        return F.log_softmax(x, dim=-1)
+        if self.is_regression:
+            return x
+        else:
+            return F.log_softmax(x, dim=-1)
 
     def activations(self, data):
         hs = {}
@@ -260,7 +273,8 @@ class GCN2017(GNNBaseModel):
 
 
 class GatedGCN(GNNBaseModel):
-    def __init__(self, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float, **kwargs) -> None:
+    def __init__(self, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float, is_regression: bool,
+                 **kwargs) -> None:
         super().__init__()
         if num_layers < 2:
             raise ValueError(f"n_layers must be larger or equal to 2: {num_layers=}")
@@ -280,6 +294,7 @@ class GatedGCN(GNNBaseModel):
         self.lin1 = Linear(hidden_dim, hidden_dim)
         self.lin2 = Linear(hidden_dim, out_dim)
         self.dropout_p = dropout_p
+        self.is_regression = is_regression
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
@@ -293,7 +308,10 @@ class GatedGCN(GNNBaseModel):
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
         x = self.lin2(x)
-        return F.log_softmax(x, dim=-1)
+        if self.is_regression:
+            return x
+        else:
+            return F.log_softmax(x, dim=-1)
 
     def activations(self, data):
         hs = {}
@@ -311,7 +329,8 @@ class GatedGCN(GNNBaseModel):
 
 
 class GraphSAGE(GNNBaseModel):
-    def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float, **kwargs) -> None:
+    def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
+                 is_regression: bool, **kwargs) -> None:
         super().__init__()
         if num_layers < 2:
             raise ValueError(f"n_layers must be larger or equal to 2: {num_layers=}")
@@ -339,6 +358,7 @@ class GraphSAGE(GNNBaseModel):
         self.lin1 = Linear(hidden_dim, hidden_dim)
         self.lin2 = Linear(hidden_dim, out_dim)
         self.dropout_p = dropout_p
+        self.is_regression = is_regression
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
@@ -352,7 +372,10 @@ class GraphSAGE(GNNBaseModel):
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
         x = self.lin2(x)
-        return F.log_softmax(x, dim=-1)
+        if self.is_regression:
+            return x
+        else:
+            return F.log_softmax(x, dim=-1)
 
     def activations(self, data):
         hs = {}
@@ -369,9 +392,9 @@ class GraphSAGE(GNNBaseModel):
         return hs
 
 
-
 class ResGatedGCN(GNNBaseModel):
-    def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float, **kwargs) -> None:
+    def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
+                 is_regression: bool, **kwargs) -> None:
         super().__init__()
         if num_layers < 2:
             raise ValueError(f"n_layers must be larger or equal to 2: {num_layers=}")
@@ -399,6 +422,7 @@ class ResGatedGCN(GNNBaseModel):
         self.lin1 = Linear(hidden_dim, hidden_dim)
         self.lin2 = Linear(hidden_dim, out_dim)
         self.dropout_p = dropout_p
+        self.is_regression = is_regression
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
@@ -412,7 +436,10 @@ class ResGatedGCN(GNNBaseModel):
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
         x = self.lin2(x)
-        return F.log_softmax(x, dim=-1)
+        if self.is_regression:
+            return x
+        else:
+            return F.log_softmax(x, dim=-1)
 
     def activations(self, data):
         hs = {}
@@ -430,7 +457,8 @@ class ResGatedGCN(GNNBaseModel):
 
 
 class ResGatedGCNs(GNNBaseModel):
-    def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float, **kwargs) -> None:
+    def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
+                 is_regression: bool, **kwargs) -> None:
         super().__init__()
         if num_layers < 2:
             raise ValueError(f"n_layers must be larger or equal to 2: {num_layers=}")
@@ -458,6 +486,7 @@ class ResGatedGCNs(GNNBaseModel):
         self.lin1 = Linear(hidden_dim, hidden_dim)
         self.lin2 = Linear(hidden_dim, out_dim)
         self.dropout_p = dropout_p
+        self.is_regression = is_regression
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
@@ -471,7 +500,10 @@ class ResGatedGCNs(GNNBaseModel):
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
         x = self.lin2(x)
-        return F.log_softmax(x, dim=-1)
+        if self.is_regression:
+            return x
+        else:
+            return F.log_softmax(x, dim=-1)
 
     def activations(self, data):
         hs = {}
@@ -498,12 +530,13 @@ MODELS: Dict[str, Type[GNNBaseModel]] = {
 }
 
 
-def get_model(cfg: DictConfig, in_dim: int, out_dim: int) -> GNNBaseModel:
+def get_model(cfg: DictConfig, in_dim: int, out_dim: int, is_regression: bool) -> GNNBaseModel:
     """
     get a model object from the config
     :param cfg: project configuration
     :param in_dim: input dimensions
     :param out_dim: output dimensions
+    :param is_regression: whether task is regression or classification (if false, results will pass through softmax)
     :return: specified model object
     """
-    return MODELS[cfg.model.name](in_dim=in_dim, out_dim=out_dim, **cfg.model)
+    return MODELS[cfg.model.name](in_dim=in_dim, out_dim=out_dim, is_regression=is_regression, **cfg.model)

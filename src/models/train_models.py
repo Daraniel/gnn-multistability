@@ -138,7 +138,8 @@ def train_graph_classifier_model(cfg: DictConfig, train_dataset: Dataset, valid_
     output_shape = train_dataset.num_classes
     if train_dataset.name in SINGLE_VALUE_REGRESSION_DATASETS:
         output_shape = 1  # HINT: use one output for single value regression datasets
-    model = get_model(cfg=cfg, in_dim=train_dataset.num_features, out_dim=output_shape)
+    model = get_model(cfg=cfg, in_dim=train_dataset.num_features, out_dim=output_shape,
+                      is_regression=task_type == TaskType.REGRESSION)
 
     log.info(f"Model has {count_parameters(model)} parameters ({count_parameters(model, trainable=True)} trainable).")
 
@@ -172,7 +173,8 @@ def train_graph_classifier_model(cfg: DictConfig, train_dataset: Dataset, valid_
     start = time.perf_counter()
     for e in range(n_epochs):
         train_loss = train_model_once(model, train_dataloader, optimizer, criterion)
-        eval_results = evaluate(model, task_type, train_dataloader, valid_dataloader, test_dataloader, criterion=criterion)
+        eval_results = evaluate(model, task_type, train_dataloader, valid_dataloader, test_dataloader,
+                                criterion=criterion)
         if task_type == TaskType.CLASSIFICATION:
             log.info(
                 f"time={time.perf_counter() - start:.2f} epoch={e}: "
@@ -276,7 +278,7 @@ def find_suboptimal_models(evals: List[Dict[str, float]], task_type: TaskType, a
 @torch.no_grad()
 def evaluate(model: torch.nn.Module, task_type: TaskType, train_dataloader: Optional[DataLoader] = None,
              valid_dataloader: Optional[DataLoader] = None, test_dataloader: Optional[DataLoader] = None,
-             criterion: Optional[torch.nn.Module] = None,) -> Dict[str, float]:
+             criterion: Optional[torch.nn.Module] = None, ) -> Dict[str, float]:
     model.eval()
     device = next(model.parameters()).device
     results = {}
