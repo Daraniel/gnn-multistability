@@ -85,9 +85,10 @@ def train_models(cfg, activations_root, predictions_dir, dataset, task_type: Tas
                     data = data.to(next(model.parameters()).device)
                     output = model(data)
                     preds = output.argmax(dim=-1)
-                    outputs_test.append(
-                        F.softmax(output, dim=-1).cpu().detach()
-                    )
+                    if task_type == TaskType.REGRESSION:
+                        outputs_test.append(output.cpu().detach())
+                    else:
+                        outputs_test.append(F.softmax(output, dim=-1).cpu().detach())
                     predictions.append(preds.cpu().detach())
                     logits_test.append(output.cpu().detach())
                     break  # TODO: update to support dataloader that have more than one batch (are not full batch)
