@@ -154,7 +154,8 @@ def train_graph_classifier_model(cfg: DictConfig, train_dataset: Dataset, valid_
         trace_func=log.debug,
     )
     if task_type == TaskType.REGRESSION:
-        criterion = torch.nn.MSELoss()
+        # criterion = torch.nn.MSELoss()
+        criterion = torch.nn.L1Loss()
     else:
         criterion = torch.nn.CrossEntropyLoss()
     n_epochs = cfg.n_epochs
