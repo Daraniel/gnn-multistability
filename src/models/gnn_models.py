@@ -239,6 +239,7 @@ class GCN2017(GNNBaseModel):
         self.lin1 = Linear(hidden_dim, hidden_dim)
         self.lin2 = Linear(hidden_dim, out_dim)
         self.dropout_p = dropout_p
+        self.is_regression = is_regression
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
