@@ -11,6 +11,7 @@ from torch_geometric.utils import degree
 
 from common.exceptions import DataWorkflowException
 
+CLASSIFICATION_DATASETS = {'aids', 'enzymes', 'ptc_fm', 'proteins', 'yeast'}
 REGRESSION_DATASETS = {'alchemy', 'aspirin', 'qm9', 'toluene', 'naphthalene', 'salicylic_acid', 'zinc', 'uracil'}
 SINGLE_VALUE_REGRESSION_DATASETS = {'aspirin', 'toluene', 'naphthalene', 'salicylic_acid', 'uracil'}
 
@@ -183,8 +184,8 @@ def get_uracil(dataset_root: Union[str, Path]) -> Dataset:
 
 def split_dataset(dataset: TUDataset) -> Dict[str, Dataset]:
     """
-    splits the given dataset to train, valid and test splits
-    :param dataset: dictionary of the splits
+    split_edge the given dataset to train, valid and test split_edge
+    :param dataset: dictionary of the split_edge
     """
     if not isinstance(dataset, TUDataset):
         raise DataWorkflowException(

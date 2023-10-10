@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 
 # todo: maybe update
 def save_class_prevalence_plots(
-        y_true: torch.Tensor,
+        # y_true: torch.Tensor,
         # test_idx: torch.Tensor,
         prevalences_path: Union[str, Path],
         savepath: Optional[Union[str, Path]] = None,

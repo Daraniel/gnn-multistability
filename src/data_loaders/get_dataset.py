@@ -1,8 +1,9 @@
 from pathlib import Path
-from typing import Union, Dict
+from typing import Union, Dict, Tuple
 
 from ogb.linkproppred import PygLinkPropPredDataset
 from ogb.nodeproppred import NodePropPredDataset
+from torch import Tensor
 from torch_geometric.data import Dataset
 from torch_geometric.datasets import TUDataset
 
@@ -22,12 +23,16 @@ DATASETS = {
 
     'yeast': tu.get_yeast,  # this dataset is too big and training on it is too slow
 
+    # node classification (may or may not work)
     'arxiv': ogb.get_ogbn_arxiv,
     'products': ogb.get_ogbn_products,
+
+    # link prediction
     'ddi': ogb.get_ogbl_ddi,
-    'citation2': ogb.get_ogbl_citation2,
     'collab': ogb.get_ogbl_collab,
     'ppa': ogb.get_ogbl_ppa,
+    'biokg': ogb.get_ogbl_biokg,
+    'citation2': ogb.get_ogbl_citation2,
 
     # graph regression
     'alchemy': tu.get_alchemy,
@@ -43,12 +48,14 @@ DATASETS = {
 }
 
 
-def get_dataset(dataset_name: str, dataset_root: Union[str, Path]) -> Dict[str, Dataset]:
+def get_dataset(dataset_name: str, dataset_root: Union[str, Path]) \
+        -> Union[Dict[str, Dataset], Tuple[Dataset, Dict[str, Tensor]]]:
     """
     get a dataset from its name
     :param dataset_name: name of the dataset
     :param dataset_root: root folder of the datasets
-    :return: dataset object
+    :return dictionary of the split datasets and a None split (tu dataset)
+     or the full dataset and indices of split_edge (ogb dataset)
     """
     dataset_name = dataset_name.lower().replace('-', '_')
     if dataset_name not in DATASETS.keys():
@@ -57,15 +64,18 @@ def get_dataset(dataset_name: str, dataset_root: Union[str, Path]) -> Dict[str, 
     return split_dataset(dataset)
 
 
-def split_dataset(dataset) -> Dict[str, Dataset]:
+def split_dataset(dataset) -> Union[Tuple[Dict[str, Dataset], None], Tuple[Dataset, Dict[str, Tensor]]]:
     """
-    splits the given dataset to train, valid and test splits
-    :param dataset: dictionary of the splits
+    split_edge the given dataset to train, valid and test split_edge
+    :param dataset: dataset to split
+    :return dictionary of the split datasets and a None split (tu dataset)
+     or the full dataset and indices of split_edge (ogb dataset)
     """
     if isinstance(dataset, TUDataset):
-        return tu.split_dataset(dataset)
+        return tu.split_dataset(dataset), None
     elif isinstance(dataset, NodePropPredDataset) or isinstance(dataset, PygLinkPropPredDataset):
-        raise NotImplementedError("ogb is not implemented yet")  # TODO: implement
-        # return ogb.split_dataset(dataset)
+        # raise NotImplementedError("ogb is not implemented yet")  # TODO: implement
+        return dataset, ogb.split_dataset(dataset)
+        # return ogb.split_dataset(dataset), None
     else:
         raise DataWorkflowException(f"Dataset type {type(dataset)} is not supported")

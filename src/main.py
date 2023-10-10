@@ -21,9 +21,9 @@ def main(cfg: DictConfig, activations_root: Optional[Union[str, Path]] = None):
     :param cfg: project configuration
     :param activations_root: path to store the activations
     """
-    activations_root, dataset, figures_dir, predictions_dir, cka_dir, task_type = setup_project(
+    activations_root, dataset, figures_dir, predictions_dir, cka_dir, task_type, splits = setup_project(
         cfg, activations_root, log)
-    train_models(cfg, activations_root, predictions_dir, dataset, task_type=task_type)
+    train_models(cfg, activations_root, predictions_dir, dataset, task_type=task_type, split_edge=splits)
     evaluate_models(cfg, activations_root, dataset, figures_dir, predictions_dir, cka_dir, task_type=task_type)
     log.info("Process finished successfully")
 

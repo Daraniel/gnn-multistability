@@ -7,27 +7,30 @@ from typing import Union, Any, Dict, Tuple, Optional
 import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf, DictConfig
+from torch import Tensor
 from torch_geometric.data import Dataset
 
 from data_loaders.get_dataset import get_dataset
-from data_loaders.tudataset_data_loader import REGRESSION_DATASETS
+from data_loaders.tudataset_data_loader import REGRESSION_DATASETS, CLASSIFICATION_DATASETS
 
 
 class TaskType(Enum):
     CLASSIFICATION = 0
     REGRESSION = 1
+    LINK_PREDICTION = 2
 
 
 def setup_project(cfg: DictConfig, activations_root: Optional[Union[str, Path]], logger: logging.Logger,
                   make_directories: bool = True) \
-        -> Tuple[Union[str, Any], Dict[str, Dataset], Path, Path, Path, TaskType]:
+        -> Tuple[Union[str, Any], Union[Dict[str, Dataset], Dataset], Path, Path, Path, TaskType, Union[
+            None, Dict[str, Tensor]]]:
     """
     set up the project and handle the directories
     :param cfg: project configuration
     :param activations_root: path to store the activations
     :param logger: project logger
     :param make_directories: whether to create the directories or not
-    :return: tuple of activations, dataset, figures, predictions, and cka_dir directories
+    :return: tuple of activations, dataset, figures, predictions, cka_dir directories, task type, and dataset split_edge
     """
     logger.info("Configuring project")
     print(OmegaConf.to_yaml(cfg))
@@ -56,16 +59,18 @@ def setup_project(cfg: DictConfig, activations_root: Optional[Union[str, Path]],
     # )
     dataset_name = get_dataset_name(cfg)
     logger.info(f"Loading dataset {dataset_name}")
-    dataset = get_dataset(dataset_name=dataset_name, dataset_root=dataset_dir)
+    dataset, splits = get_dataset(dataset_name=dataset_name, dataset_root=dataset_dir)
     logger.info("Dataset loaded and configuration completed")
     if dataset_name in REGRESSION_DATASETS:
         task_type = TaskType.REGRESSION
-    else:
+    elif dataset in CLASSIFICATION_DATASETS:
         task_type = TaskType.CLASSIFICATION
-    return activations_root, dataset, figures_dir, predictions_dir, cka_dir, task_type
+    else:
+        task_type = TaskType.LINK_PREDICTION
+    return activations_root, dataset, figures_dir, predictions_dir, cka_dir, task_type, splits
 
 
-def get_dataset_name(cfg):
+def get_dataset_name(cfg) -> str:
     if isinstance(cfg.dataset, str):
         dataset_name = cfg.dataset
     else:

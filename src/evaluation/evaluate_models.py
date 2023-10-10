@@ -4,7 +4,7 @@ import logging
 import os
 import pickle
 from pathlib import Path
-from typing import List, Any, Tuple, Dict, Callable
+from typing import List, Any, Tuple, Dict, Callable, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,7 +18,7 @@ from scipy.stats import entropy
 import evaluation.helper_functions
 import evaluation.predictions
 import plots
-from common.utils import TaskType
+from common.utils import TaskType, get_dataset_name
 from evaluation import feature_space_linear_cka
 from evaluation.cca import get_cca
 from evaluation.procrustes import get_procrustes
@@ -59,7 +59,7 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
         predictions=predictions,
         outputs_test=outputs_test,
         logits_test=logits_test,
-        test_dataset=dataset['test'],
+        dataset=dataset,
         evals=evals,
         task_type=task_type
     )
@@ -102,20 +102,21 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
 
     # RSA experiments
     # noinspection PyProtectedMember
-    try:
-        run_experiments_with_function(
-            cfg=cfg,
-            figures_dir=figures_dir,
-            predictions_dir=predictions_dir,
-            cka_dir=cka_dir,
-            activations_root=activations_root,
-            function_to_use=get_rsa_cos,
-            calculating_function_name="rsa_cos",
-            multi_process=True,
-        )
-    except np.core._exceptions._ArrayMemoryError:
-        # HINT: if we can't calculate one RSA with float 16, totally skip RSA
-        log.error("Unable to allocate memory error in calculating RSA, retry with float 16 failed, skipping RSA")
+    # TODO: reactivate for Regression(?)
+    # try:
+    #     run_experiments_with_function(
+    #         cfg=cfg,
+    #         figures_dir=figures_dir,
+    #         predictions_dir=predictions_dir,
+    #         cka_dir=cka_dir,
+    #         activations_root=activations_root,
+    #         function_to_use=get_rsa_cos,
+    #         calculating_function_name="rsa_cos",
+    #         multi_process=True,
+    #     )
+    # except np.core._exceptions._ArrayMemoryError:
+    #     # HINT: if we can't calculate one RSA with float 16, totally skip RSA
+    #     log.error("Unable to allocate memory error in calculating RSA, retry with float 16 failed, skipping RSA")
 
     # run_experiments_with_function(
     #     cfg=cfg,
@@ -236,26 +237,30 @@ def save_heatmap(ids: Tuple[str, str], ticklabels: Tuple[List[float], List[float
 def stability_experiments(cfg: DictConfig, predictions_dir: Path,
                           figures_dir: Path, predictions: List[torch.Tensor],
                           outputs_test: List[torch.Tensor], logits_test: List[torch.Tensor],
-                          test_dataset: torch_geometric.data.Dataset, evals: List[Dict[str, float]],
+                          dataset: Union[torch_geometric.data.Dataset, Dict[str, torch_geometric.data.Dataset]],
+                          evals: List[Dict[str, float]],
                           task_type: TaskType):
     log.info("Calculating stability of predictions...")
-
-    distr = evaluation.predictions.classification_node_distr(
-        predictions, test_dataset.num_classes  # type:ignore
-    )
-    if task_type == TaskType.CLASSIFICATION:
-        preval_df = []
+    num_classes = 2
+    if task_type == TaskType.LINK_PREDICTION:
+        num_classes = dataset.num_classes
+        distr = None
+    else:
+        distr = evaluation.predictions.classification_node_distr(
+            predictions, num_classes   # type:ignore
+        )
         nodewise_distr_path = Path(predictions_dir, f"nodewise_distr.npy")
-
         np.save(str(nodewise_distr_path), distr)
         # log.info(f"nodewise_distr: {distr}")
 
+    if task_type != TaskType.REGRESSION:
+        preval_df = []
         # for split_name, idx in split_idx.items():
         for split_name in ['test']:
             # filtered_preds = [p[idx] for p in predictions]
             filtered_preds = [p for p in predictions]
             prevalences = evaluation.predictions.classification_prevalence(
-                filtered_preds, test_dataset.num_classes  # type:ignore
+                filtered_preds, num_classes  # type:ignore
             )
             for key, val in prevalences.items():
                 preval_df.append((split_name, key, val[0], val[1]))
@@ -264,38 +269,34 @@ def stability_experiments(cfg: DictConfig, predictions_dir: Path,
                 filtered_preds
             )
             log.info("Predictions (%s) stable over all models: %.2f", split_name, frac_stable)
-        prevalences_path = Path(predictions_dir, "prevalences.csv")
-        pd.DataFrame.from_records(preval_df).to_csv(prevalences_path)
-        # todo: update
-        dataset_name = cfg.dataset if isinstance(cfg.dataset, str) else cfg.dataset.name
-        plots.save_class_prevalence_plots(
-            test_dataset[0].y,  # type:ignore
-            # split_idx["test"],
-            prevalences_path=prevalences_path,
-            savepath=figures_dir,
-            dataset_name=dataset_name,
-        )
-        plots.save_node_instability_distribution(
-            # split_idx["test"],
-            prediction_distr_path=nodewise_distr_path,
-            savepath=figures_dir,
-            dataset_name=dataset_name,
-        )
+
+        if task_type == TaskType.CLASSIFICATION:
+            prevalences_path = Path(predictions_dir, "prevalences.csv")
+            dataset_name = get_dataset_name(cfg)
+            pd.DataFrame.from_records(preval_df).to_csv(prevalences_path)
+            # todo: update
+            plots.save_class_prevalence_plots(
+                # dataset['test'][0].y,  # type:ignore
+                # split_idx["test"],
+                prevalences_path=prevalences_path,
+                savepath=figures_dir,
+                dataset_name=dataset_name,
+            )
+            plots.save_node_instability_distribution(
+                # split_idx["test"],
+                prediction_distr_path=nodewise_distr_path,
+                savepath=figures_dir,
+                dataset_name=dataset_name,
+            )
 
     # Compare the model output distributions to the prediction distribution
     logits_test: np.ndarray = torch.stack(logits_test, dim=0).numpy()
     probas_test: np.ndarray = torch.stack(outputs_test, dim=0).numpy()
-    avg_output_entropy = np.mean(entropy(probas_test, axis=2), axis=0)
-    # predictions_entropy = entropy(distr[split_idx["test"].numpy()], axis=1) # todo: update
-    predictions_entropy = entropy(distr, axis=1)
-    plots.node_stability.save_scatter_correlation(
-        predictions_entropy,
-        avg_output_entropy,
-        "Prediction Entropy",
-        "Average Model Output Entropy",
-        "Prediction Entropy - Avg Model Output Entropy: %s",
-        Path(figures_dir, "entropy_scatter.jpg"),
-    )
+
+    dist_axis = 2
+    if task_type == TaskType.LINK_PREDICTION:
+        dist_axis = 1
+    avg_output_entropy = np.mean(entropy(probas_test, axis=dist_axis), axis=0)
 
     # main version
     # Compare the output and prediction entropy to node properties
@@ -316,29 +317,42 @@ def stability_experiments(cfg: DictConfig, predictions_dir: Path,
 
     # my version
     # Compare the output and prediction entropy to node properties
-    degrees = np.asarray([test_dataset[i].num_edges for i in range(len(test_dataset))])
+    if task_type != TaskType.LINK_PREDICTION:
+        degrees = np.asarray([dataset['test'][i].num_edges for i in range(len(dataset['test']))])
 
-    # # todo: fix bug and restore (bug is related to difference in shape of  degrees and predictions_entropy
-    plots.node_stability.save_scatter_correlation(
-        degrees,
-        predictions_entropy,
-        "Degrees",
-        "Prediction Entropy",
-        "Degree - Prediction Entropy: %s",
-        Path(figures_dir, "degree_predentropy.jpg"),
-    )
-    plots.node_stability.save_scatter_correlation(
-        degrees,
-        avg_output_entropy,
-        "Degrees",
-        "Avg Model Output Entropy",
-        "Degree - Avg Output Entropy: %s",
-        Path(figures_dir, "degree_outputentropy.jpg"),
-    )
+        # predictions_entropy = entropy(distr[split_idx["test"].numpy()], axis=1) # todo: update
+        predictions_entropy = entropy(distr, axis=1)
+        plots.node_stability.save_scatter_correlation(
+            predictions_entropy,
+            avg_output_entropy,
+            "Prediction Entropy",
+            "Average Model Output Entropy",
+            "Prediction Entropy - Avg Model Output Entropy: %s",
+            Path(figures_dir, "entropy_scatter.jpg"),
+        )
+
+        # todo: fix bug and restore (bug is related to difference in shape of  degrees and predictions_entropy
+        plots.node_stability.save_scatter_correlation(
+            degrees,
+            predictions_entropy,
+            "Degrees",
+            "Prediction Entropy",
+            "Degree - Prediction Entropy: %s",
+            Path(figures_dir, "degree_predentropy.jpg"),
+        )
+
+        plots.node_stability.save_scatter_correlation(
+            degrees,
+            avg_output_entropy,
+            "Degrees",
+            "Avg Model Output Entropy",
+            "Degree - Avg Output Entropy: %s",
+            Path(figures_dir, "degree_outputentropy.jpg"),
+        )
 
     # Compare models pairwise w.r.t. identical predictions
     pi_distr = evaluation.predictions.pairwise_instability(
-        preds=probas_test.argmax(axis=2), figurepath=figures_dir
+        preds=probas_test.argmax(axis=dist_axis), figurepath=figures_dir
     )
     np.save(str(Path(predictions_dir, "pi_distr.npy")), pi_distr)
     log.info(f"pi_distr: {pi_distr}")
@@ -348,7 +362,7 @@ def stability_experiments(cfg: DictConfig, predictions_dir: Path,
     else:
         metric = "loss"
     norm_pi_distr = evaluation.predictions.normalized_pairwise_instability(
-        preds=probas_test.argmax(axis=2),
+        preds=probas_test.argmax(axis=dist_axis),
         accs=np.asarray([e[f"test_{metric}"] for e in evals]),
         figurepath=figures_dir,
     )
@@ -372,7 +386,7 @@ def stability_experiments(cfg: DictConfig, predictions_dir: Path,
             true_diffs,
             false_diffs,
         ) = evaluation.predictions.pairwise_conditioned_instability(
-            probas_test.argmax(axis=2),
+            probas_test.argmax(axis=dist_axis),
             test_dataset[0].y.cpu(),  # type:ignore
         )
         np.save(str(Path(predictions_dir, "true_pi_distr.npy")), true_diffs)

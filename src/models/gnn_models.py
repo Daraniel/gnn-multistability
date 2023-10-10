@@ -10,6 +10,36 @@ from torch.nn import Linear, Sequential, ReLU, BatchNorm1d as BN
 # noinspection PyProtectedMember
 from torch_geometric.nn import GINConv, global_mean_pool, GATConv, GCNConv, SAGEConv, GatedGraphConv, ResGatedGraphConv
 
+from common.utils import TaskType
+
+
+# this class is based on https://github.com/snap-stanford/ogb/blob/master/examples/linkproppred/collab/gnn.py
+class LinkPredictor(torch.nn.Module):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
+                 dropout):
+        super(LinkPredictor, self).__init__()
+
+        self.lins = torch.nn.ModuleList()
+        self.lins.append(torch.nn.Linear(in_channels, hidden_channels))
+        for _ in range(num_layers - 2):
+            self.lins.append(torch.nn.Linear(hidden_channels, hidden_channels))
+        self.lins.append(torch.nn.Linear(hidden_channels, out_channels))
+
+        self.dropout = dropout
+
+    def reset_parameters(self):
+        for lin in self.lins:
+            lin.reset_parameters()
+
+    def forward(self, x_i, x_j):
+        x = x_i * x_j
+        for lin in self.lins[:-1]:
+            x = lin(x)
+            x = F.relu(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.lins[-1](x)
+        return torch.sigmoid(x)
+
 
 class GNNBaseModel(torch.nn.Module, abc.ABC):
     # @abc.abstractmethod
@@ -28,7 +58,7 @@ class GNNBaseModel(torch.nn.Module, abc.ABC):
 # based on https://github.com/rusty1s/pytorch_geometric/blob/master/benchmark/kernel/gin.py
 class GIN(GNNBaseModel):
     def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
-                 is_regression: bool, **kwargs):
+                 task_type: TaskType, **kwargs):
         super(GIN, self).__init__()
         # self.conv1 = GINConv(ModuleDict(
         #     {
@@ -70,7 +100,7 @@ class GIN(GNNBaseModel):
         self.lin1 = Linear(hidden_dim, hidden_dim)
         self.lin2 = Linear(hidden_dim, out_dim)
         self.dropout_p = dropout_p
-        self.is_regression = is_regression
+        self.task_type = task_type
 
     def reset_parameters(self):
         self.conv1.reset_parameters()
@@ -80,16 +110,21 @@ class GIN(GNNBaseModel):
         self.lin2.reset_parameters()
 
     def forward(self, data):
-        x, edge_index, batch = data.x, data.edge_index, data.batch
+        if self.task_type == TaskType.LINK_PREDICTION:
+            x, edge_index, batch = data.x, data.adj_t, data.batch
+        else:
+            x, edge_index, batch = data.x, data.edge_index, data.batch
         # x = self.conv1(x, edge_index)
         for conv in self.convs:
             x = conv(x, edge_index)
 
+        if self.task_type == TaskType.LINK_PREDICTION:
+            return x
         x = global_mean_pool(x, batch)
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
         x = self.lin2(x)
-        if self.is_regression:
+        if self.task_type == TaskType.REGRESSION:
             return x
         else:
             return F.log_softmax(x, dim=-1)
@@ -105,7 +140,11 @@ class GIN(GNNBaseModel):
         """
         hs = {}
         device = next(self.parameters()).device
-        x, edge_index = data.x.to(device), data.edge_index.to(device)
+        if self.task_type == TaskType.LINK_PREDICTION:
+            x, edge_index = data.x.to(device), data.adj_t.to(device)
+
+        else:
+            x, edge_index = data.x.to(device), data.edge_index.to(device)
         # for i, layer in enumerate(self.convs[:-1], start=1):
         for i, layer in enumerate(self.convs):
             # go over the internal layers of GIN to get the value of its activation last function
@@ -125,7 +164,7 @@ class GIN(GNNBaseModel):
 # based on https://github.com/mklabunde/gnn-prediction-instability/blob/main/src/models/gnn.py
 class GAT2017(GNNBaseModel):
     def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
-                 n_heads: int, n_output_heads: int, is_regression: bool, **kwargs) -> None:
+                 n_heads: int, n_output_heads: int, task_type: TaskType, **kwargs) -> None:
         super().__init__()
         if num_layers < 2:
             raise ValueError(f"n_layers must be larger or equal to 2: {num_layers=}")
@@ -174,21 +213,26 @@ class GAT2017(GNNBaseModel):
         self.lin1 = Linear(hidden_dim, hidden_dim)
         self.lin2 = Linear(hidden_dim, out_dim)
         self.dropout_p = dropout_p
-        self.is_regression = is_regression
+        self.task_type = task_type
 
     def forward(self, data):
-        x, edge_index, batch = data.x, data.edge_index, data.batch
+        if self.task_type == TaskType.LINK_PREDICTION:
+            x, edge_index, batch = data.x, data.adj_t, data.batch
+        else:
+            x, edge_index, batch = data.x, data.edge_index, data.batch
         for layer in self.layers:
             x = layer["dropout"](x)  # type:ignore
             x = layer["conv"](x, edge_index)  # type:ignore
             if "act" in layer:  # type:ignore
                 x = layer["act"](x)  # type:ignore
 
+        if self.task_type == TaskType.LINK_PREDICTION:
+            return x
         x = global_mean_pool(x, batch)
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
         x = self.lin2(x)
-        if self.is_regression:
+        if self.task_type == TaskType.REGRESSION:
             return x
         else:
             return F.log_softmax(x, dim=-1)
@@ -196,7 +240,11 @@ class GAT2017(GNNBaseModel):
     def activations(self, data):
         hs = {}
         device = next(self.parameters()).device
-        x, edge_index = data.x.to(device), data.edge_index.to(device)
+        if self.task_type == TaskType.LINK_PREDICTION:
+            x, edge_index = data.x.to(device), data.adj_t.to(device)
+
+        else:
+            x, edge_index = data.x.to(device), data.edge_index.to(device)
         for i, layer in enumerate(self.layers[:-1], start=1):  # type:ignore
             x = layer["dropout"](x)  # type:ignore
             x = layer["conv"](x, edge_index)  # type:ignore
@@ -210,8 +258,43 @@ class GAT2017(GNNBaseModel):
 
 # based on https://github.com/mklabunde/gnn-prediction-instability/blob/main/src/models/gnn.py
 class GCN2017(GNNBaseModel):
+    # def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
+    #              task_type: TaskType, *args, **kwargs) -> None:
+    #     super().__init__()
+    #     self.convs = torch.nn.ModuleList()
+    #     self.convs.append(GCNConv(in_dim, hidden_dim, cached=True))
+    #     for _ in range(num_layers - 2):
+    #         self.convs.append(
+    #             GCNConv(hidden_dim, hidden_dim, cached=True))
+    #     self.convs.append(GCNConv(hidden_dim, out_dim, cached=True))
+    #
+    #     self.dropout = dropout_p
+    #     self.task_type = task_type
+    #
+    # def reset_parameters(self):
+    #     for conv in self.convs:
+    #         conv.reset_parameters()
+    #
+    # def forward(self, data):
+    #     x, adj_t = data.x, data.adj_t
+    #     for conv in self.convs[:-1]:
+    #         x = conv(x, adj_t)
+    #         x = F.relu(x)
+    #         x = F.dropout(x, p=self.dropout, training=self.training)
+    #     x = self.convs[-1](x, adj_t)
+    #     return x
+    #
+    # def activations(self, data):
+    #     hs = {}
+    #     device = next(self.parameters()).device
+    #     x, adj_t = data.x.to(device), data.adj_t.to(device)
+    #     for i, layer in enumerate(self.convs[:-1], start=1):  # type:ignore
+    #         x = layer(x, adj_t)  # type:ignore
+    #         hs[f"{i}.0"] = x
+    #     return hs
+
     def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
-                 is_regression: bool, **kwargs) -> None:
+                 task_type: TaskType, **kwargs) -> None:
         super().__init__()
         if num_layers < 2:
             raise ValueError(f"n_layers must be larger or equal to 2: {num_layers=}")
@@ -239,21 +322,25 @@ class GCN2017(GNNBaseModel):
         self.lin1 = Linear(hidden_dim, hidden_dim)
         self.lin2 = Linear(hidden_dim, out_dim)
         self.dropout_p = dropout_p
-        self.is_regression = is_regression
+        self.task_type = task_type
 
     def forward(self, data):
-        x, edge_index, batch = data.x, data.edge_index, data.batch
+        if self.task_type == TaskType.LINK_PREDICTION:
+            x, edge_index, batch = data.x, data.adj_t, data.batch
+        else:
+            x, edge_index, batch = data.x, data.edge_index, data.batch
         for layer in self.layers:
             x = layer["dropout"](x)  # type:ignore
             x = layer["conv"](x, edge_index)  # type:ignore
             if "act" in layer:  # type:ignore
                 x = layer["act"](x)  # type:ignore
-
+        if self.task_type == TaskType.LINK_PREDICTION:
+            return x
         x = global_mean_pool(x, batch)
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
         x = self.lin2(x)
-        if self.is_regression:
+        if self.task_type == TaskType.REGRESSION:
             return x
         else:
             return F.log_softmax(x, dim=-1)
@@ -261,7 +348,11 @@ class GCN2017(GNNBaseModel):
     def activations(self, data):
         hs = {}
         device = next(self.parameters()).device
-        x, edge_index = data.x.to(device), data.edge_index.to(device)
+        if self.task_type == TaskType.LINK_PREDICTION:
+            x, edge_index = data.x.to(device), data.adj_t.to(device)
+
+        else:
+            x, edge_index = data.x.to(device), data.edge_index.to(device)
         for i, layer in enumerate(self.layers[:-1], start=1):  # type:ignore
             x = layer["dropout"](x)  # type:ignore
             x = layer["conv"](x, edge_index)  # type:ignore
@@ -274,7 +365,7 @@ class GCN2017(GNNBaseModel):
 
 
 class GatedGCN(GNNBaseModel):
-    def __init__(self, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float, is_regression: bool,
+    def __init__(self, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float, task_type: TaskType,
                  **kwargs) -> None:
         super().__init__()
         if num_layers < 2:
@@ -295,21 +386,26 @@ class GatedGCN(GNNBaseModel):
         self.lin1 = Linear(hidden_dim, hidden_dim)
         self.lin2 = Linear(hidden_dim, out_dim)
         self.dropout_p = dropout_p
-        self.is_regression = is_regression
+        self.task_type = task_type
 
     def forward(self, data):
-        x, edge_index, batch = data.x, data.edge_index, data.batch
+        if self.task_type == TaskType.LINK_PREDICTION:
+            x, edge_index, batch = data.x, data.adj_t, data.batch
+        else:
+            x, edge_index, batch = data.x, data.edge_index, data.batch
         for layer in self.layers:
             x = layer["dropout"](x)  # type:ignore
             x = layer["conv"](x, edge_index)  # type:ignore
             if "act" in layer:  # type:ignore
                 x = layer["act"](x)  # type:ignore
 
+        if self.task_type == TaskType.LINK_PREDICTION:
+            return x
         x = global_mean_pool(x, batch)
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
         x = self.lin2(x)
-        if self.is_regression:
+        if self.task_type == TaskType.REGRESSION:
             return x
         else:
             return F.log_softmax(x, dim=-1)
@@ -317,7 +413,11 @@ class GatedGCN(GNNBaseModel):
     def activations(self, data):
         hs = {}
         device = next(self.parameters()).device
-        x, edge_index = data.x.to(device), data.edge_index.to(device)
+        if self.task_type == TaskType.LINK_PREDICTION:
+            x, edge_index = data.x.to(device), data.adj_t.to(device)
+
+        else:
+            x, edge_index = data.x.to(device), data.edge_index.to(device)
         for i, layer in enumerate(self.layers[:-1], start=1):  # type:ignore
             x = layer["dropout"](x)  # type:ignore
             x = layer["conv"](x, edge_index)  # type:ignore
@@ -331,7 +431,7 @@ class GatedGCN(GNNBaseModel):
 
 class GraphSAGE(GNNBaseModel):
     def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
-                 is_regression: bool, **kwargs) -> None:
+                 task_type: TaskType, **kwargs) -> None:
         super().__init__()
         if num_layers < 2:
             raise ValueError(f"n_layers must be larger or equal to 2: {num_layers=}")
@@ -359,21 +459,26 @@ class GraphSAGE(GNNBaseModel):
         self.lin1 = Linear(hidden_dim, hidden_dim)
         self.lin2 = Linear(hidden_dim, out_dim)
         self.dropout_p = dropout_p
-        self.is_regression = is_regression
+        self.task_type = task_type
 
     def forward(self, data):
-        x, edge_index, batch = data.x, data.edge_index, data.batch
+        if self.task_type == TaskType.LINK_PREDICTION:
+            x, edge_index, batch = data.x, data.adj_t, data.batch
+        else:
+            x, edge_index, batch = data.x, data.edge_index, data.batch
         for layer in self.layers:
             x = layer["dropout"](x)  # type:ignore
             x = layer["conv"](x, edge_index)  # type:ignore
             if "act" in layer:  # type:ignore
                 x = layer["act"](x)  # type:ignore
 
+        if self.task_type == TaskType.LINK_PREDICTION:
+            return x
         x = global_mean_pool(x, batch)
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
         x = self.lin2(x)
-        if self.is_regression:
+        if self.task_type == TaskType.REGRESSION:
             return x
         else:
             return F.log_softmax(x, dim=-1)
@@ -381,7 +486,11 @@ class GraphSAGE(GNNBaseModel):
     def activations(self, data):
         hs = {}
         device = next(self.parameters()).device
-        x, edge_index = data.x.to(device), data.edge_index.to(device)
+        if self.task_type == TaskType.LINK_PREDICTION:
+            x, edge_index = data.x.to(device), data.adj_t.to(device)
+
+        else:
+            x, edge_index = data.x.to(device), data.edge_index.to(device)
         for i, layer in enumerate(self.layers[:-1], start=1):  # type:ignore
             x = layer["dropout"](x)  # type:ignore
             x = layer["conv"](x, edge_index)  # type:ignore
@@ -395,7 +504,7 @@ class GraphSAGE(GNNBaseModel):
 
 class ResGatedGCN(GNNBaseModel):
     def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
-                 is_regression: bool, **kwargs) -> None:
+                 task_type: TaskType, **kwargs) -> None:
         super().__init__()
         if num_layers < 2:
             raise ValueError(f"n_layers must be larger or equal to 2: {num_layers=}")
@@ -423,21 +532,26 @@ class ResGatedGCN(GNNBaseModel):
         self.lin1 = Linear(hidden_dim, hidden_dim)
         self.lin2 = Linear(hidden_dim, out_dim)
         self.dropout_p = dropout_p
-        self.is_regression = is_regression
+        self.task_type = task_type
 
     def forward(self, data):
-        x, edge_index, batch = data.x, data.edge_index, data.batch
+        if self.task_type == TaskType.LINK_PREDICTION:
+            x, edge_index, batch = data.x, data.adj_t, data.batch
+        else:
+            x, edge_index, batch = data.x, data.edge_index, data.batch
         for layer in self.layers:
             x = layer["dropout"](x)  # type:ignore
             x = layer["conv"](x, edge_index)  # type:ignore
             if "act" in layer:  # type:ignore
                 x = layer["act"](x)  # type:ignore
 
+        if self.task_type == TaskType.LINK_PREDICTION:
+            return x
         x = global_mean_pool(x, batch)
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
         x = self.lin2(x)
-        if self.is_regression:
+        if self.task_type == TaskType.REGRESSION:
             return x
         else:
             return F.log_softmax(x, dim=-1)
@@ -445,7 +559,11 @@ class ResGatedGCN(GNNBaseModel):
     def activations(self, data):
         hs = {}
         device = next(self.parameters()).device
-        x, edge_index = data.x.to(device), data.edge_index.to(device)
+        if self.task_type == TaskType.LINK_PREDICTION:
+            x, edge_index = data.x.to(device), data.adj_t.to(device)
+
+        else:
+            x, edge_index = data.x.to(device), data.edge_index.to(device)
         for i, layer in enumerate(self.layers[:-1], start=1):  # type:ignore
             x = layer["dropout"](x)  # type:ignore
             x = layer["conv"](x, edge_index)  # type:ignore
@@ -459,7 +577,7 @@ class ResGatedGCN(GNNBaseModel):
 
 class ResGatedGCNs(GNNBaseModel):
     def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
-                 is_regression: bool, **kwargs) -> None:
+                 task_type: TaskType, **kwargs) -> None:
         super().__init__()
         if num_layers < 2:
             raise ValueError(f"n_layers must be larger or equal to 2: {num_layers=}")
@@ -487,21 +605,26 @@ class ResGatedGCNs(GNNBaseModel):
         self.lin1 = Linear(hidden_dim, hidden_dim)
         self.lin2 = Linear(hidden_dim, out_dim)
         self.dropout_p = dropout_p
-        self.is_regression = is_regression
+        self.task_type = task_type
 
     def forward(self, data):
-        x, edge_index, batch = data.x, data.edge_index, data.batch
+        if self.task_type == TaskType.LINK_PREDICTION:
+            x, edge_index, batch = data.x, data.adj_t, data.batch
+        else:
+            x, edge_index, batch = data.x, data.edge_index, data.batch
         for layer in self.layers:
             x = layer["dropout"](x)  # type:ignore
             x = layer["conv"](x, edge_index)  # type:ignore
             if "act" in layer:  # type:ignore
                 x = layer["act"](x)  # type:ignore
 
+        if self.task_type == TaskType.LINK_PREDICTION:
+            return x
         x = global_mean_pool(x, batch)
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
         x = self.lin2(x)
-        if self.is_regression:
+        if self.task_type == TaskType.REGRESSION:
             return x
         else:
             return F.log_softmax(x, dim=-1)
@@ -509,7 +632,11 @@ class ResGatedGCNs(GNNBaseModel):
     def activations(self, data):
         hs = {}
         device = next(self.parameters()).device
-        x, edge_index = data.x.to(device), data.edge_index.to(device)
+        if self.task_type == TaskType.LINK_PREDICTION:
+            x, edge_index = data.x.to(device), data.adj_t.to(device)
+
+        else:
+            x, edge_index = data.x.to(device), data.edge_index.to(device)
         for i, layer in enumerate(self.layers[:-1], start=1):  # type:ignore
             x = layer["dropout"](x)  # type:ignore
             x = layer["conv"](x, edge_index)  # type:ignore
@@ -531,13 +658,13 @@ MODELS: Dict[str, Type[GNNBaseModel]] = {
 }
 
 
-def get_model(cfg: DictConfig, in_dim: int, out_dim: int, is_regression: bool) -> GNNBaseModel:
+def get_model(cfg: DictConfig, in_dim: int, out_dim: int, task_type: TaskType) -> GNNBaseModel:
     """
     get a model object from the config
     :param cfg: project configuration
     :param in_dim: input dimensions
     :param out_dim: output dimensions
-    :param is_regression: whether task is regression or classification (if false, results will pass through softmax)
+    :param task_type: whether task is regression or classification (if false, results will pass through softmax)
     :return: specified model object
     """
-    return MODELS[cfg.model.name](in_dim=in_dim, out_dim=out_dim, is_regression=is_regression, **cfg.model)
+    return MODELS[cfg.model.name](in_dim=in_dim, out_dim=out_dim, task_type=task_type, **cfg.model)
