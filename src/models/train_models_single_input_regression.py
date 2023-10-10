@@ -218,14 +218,20 @@ def train_graph_classifier_model(cfg: DictConfig, dataset: Union[Tensor, torch.n
 
         # use batch training for regression dataset since it's too big but full batch for other datasets that are small
         if task_type == TaskType.REGRESSION:
-            train_dataloader = DataLoader(train_dataset, batch_size=math.ceil(train_dataset.__len__() / 32),
+            # train_dataloader = DataLoader(train_dataset, batch_size=math.ceil(train_dataset.__len__() / 32),
+            #                               shuffle=False)
+            # valid_dataloader = DataLoader(valid_dataset, batch_size=math.ceil(valid_dataset.__len__() / 32),
+            #                               shuffle=False)
+
+            train_dataloader = DataLoader(train_dataset[0], batch_size=2,
                                           shuffle=False)
-            valid_dataloader = DataLoader(valid_dataset, batch_size=math.ceil(valid_dataset.__len__() / 32),
+            valid_dataloader = DataLoader(valid_dataset[0], batch_size=2,
                                           shuffle=False)
         else:
             train_dataloader = DataLoader(train_dataset, batch_size=train_dataset.__len__(), shuffle=False)
             valid_dataloader = DataLoader(valid_dataset, batch_size=valid_dataset.__len__(), shuffle=False)
-        test_dataloader = DataLoader(test_dataset, batch_size=test_dataset.__len__(), shuffle=False)
+        # test_dataloader = DataLoader(test_dataset, batch_size=test_dataset.__len__(), shuffle=False)
+        test_dataloader = DataLoader(test_dataset[0], batch_size=2, shuffle=False)
         model = get_model(cfg=cfg, in_dim=input_shape, out_dim=output_shape, task_type=task_type)
         optimizer = get_optimizer(model.parameters(), cfg.optim)
 
@@ -369,21 +375,22 @@ def train_model_once(model: torch.nn.Module, train_loader: DataLoader, optimizer
     model.train()
     total_loss = 0
     # noinspection PyTypeChecker
-    for data in train_loader:
-        data = data.to(next(model.parameters()).device)
-        optimizer.zero_grad()
-        out = model(data)
-        if out.shape == data.y.shape:
-            loss = criterion(out, data.y)
-        elif out.shape[0] == data.y.shape[0] and out.shape[1] == 1 and len(data.y.shape) == 1 and len(out.shape) == 2:
-            # HINT: y is flattened but not output
-            loss = criterion(out, data.y.view(out.shape))
-        else:
-            loss = criterion(out, data.y.view(-1))
-        optimizer.zero_grad()
-        loss.backward()
-        total_loss += loss.item() * num_graphs(data)
-        optimizer.step()
+    # for data in train_loader:
+    data = train_loader.dataset
+    data = data.to(next(model.parameters()).device)
+    optimizer.zero_grad()
+    out = model(data)
+    if out.shape == data.y.shape:
+        loss = criterion(out, data.y)
+    elif out.shape[0] == data.y.shape[0] and out.shape[1] == 1 and len(data.y.shape) == 1 and len(out.shape) == 2:
+        # HINT: y is flattened but not output
+        loss = criterion(out, data.y.view(out.shape))
+    else:
+        loss = criterion(out, data.y.view(-1))
+    optimizer.zero_grad()
+    loss.backward()
+    total_loss += loss.item() * num_graphs(data)
+    optimizer.step()
     return total_loss / len(train_loader.dataset)
 
 
@@ -550,14 +557,15 @@ def evaluate(model: torch.nn.Module, task_type: TaskType, train_dataloader: Opti
             outputs = []
             y_preds = []
             ys = []
-            for data in dataloader:
-                data = data.to(device)
-                out = model(data)
-                outputs.append(out.cpu().detach())
-                if task_type != TaskType.REGRESSION:
-                    y_pred = out.argmax(dim=-1, keepdim=True)
-                    y_preds.append(y_pred.cpu().detach())
-                ys.append(data.y.cpu().detach())
+            data = dataloader.dataset
+            # for data in dataloader:
+            data = data.to(device)
+            out = model(data)
+            outputs.append(out.cpu().detach())
+            if task_type != TaskType.REGRESSION:
+                y_pred = out.argmax(dim=-1, keepdim=True)
+                y_preds.append(y_pred.cpu().detach())
+            ys.append(data.y.cpu().detach())
 
             outputs = torch.cat(outputs)
             ys = torch.cat(ys)
