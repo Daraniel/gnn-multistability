@@ -94,6 +94,7 @@ def get_ogbl_wikikg2(dataset_root: Union[str, Path]) -> PygLinkPropPredDataset:
     """
     return get_link_dataset('ogbl-wikikg2', dataset_root, T.ToSparseTensor())
 
+
 def get_ogbl_biokg(dataset_root: Union[str, Path]) -> PygLinkPropPredDataset:
     """
     get ogbl-biokg dataset
