@@ -36,6 +36,9 @@ def setup_project(cfg: DictConfig, activations_root: Optional[Union[str, Path]],
     print(OmegaConf.to_yaml(cfg))
     activations_root, dataset_dir, figures_dir, predictions_dir, cka_dir = get_directories(cfg, activations_root,
                                                                                            make_directories)
+    logger.info("Setting CUBLAS_WORKSPACE_CONFIG enviroment variable")
+    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+
     fix_seeds(cfg.datasplit_seed)
     # TODO: update
 
