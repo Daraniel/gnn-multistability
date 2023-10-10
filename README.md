@@ -41,7 +41,7 @@ this folder contains the main code
 Alternatively `train.py` can be used to only train the models, and then the results can be evaluated with `evaluate.py` for single runs or `evaluate_multy.py` for multi-runs. Please save the activation functions when using this method.
 
 
-Both `environment.yml` and `menv.yaml` contain the conda environment used in this project. Each of them is created from a different system but both should be usable to replicate the results.
+Both `environment.yml` and `menv.yaml` contain the conda environment used in this project. Each of them is created from a different system but both should be usable to replicate the results. The former is created from system running windows 10 while the latter is created from ubuntu.
 
 #### common
 
