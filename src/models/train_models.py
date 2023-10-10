@@ -15,6 +15,7 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.backends.cudnn
+import torch_geometric.transforms as T
 from ogb.linkproppred import Evaluator
 from omegaconf import DictConfig
 from torch import Tensor
@@ -512,10 +513,11 @@ def get_ogbl_data(dataset, cfg: DictConfig) -> Union[Tensor, torch.nn.Embedding]
     if dataset_name == 'ppa':
         data.x = data.x.to(torch.float)
     elif dataset_name == 'collab':
-        pass
-        # if data.edge_weight is not None:
-        #     data.edge_weight = data.edge_weight.view(-1).to(torch.float)
-        # data = T.ToSparseTensor()(data)
+        # data.x = data.x.to(torch.float)
+        # data.adj_t = data.adj_t.to(torch.float)
+        if data.edge_weight is not None:
+            data.edge_weight = data.edge_weight.view(-1).to(torch.float)
+        data = T.ToSparseTensor()(data)
     elif dataset_name == 'ddi':
         emb = torch.nn.Embedding(data.adj_t.size(0),
                                  cfg.model.hidden_dim)

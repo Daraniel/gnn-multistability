@@ -20,7 +20,7 @@ def get_node_dataset(dataset_name: str, dataset_root: Union[str, Path]) -> NodeP
     return dataset
 
 
-def get_link_dataset(dataset_name: str, dataset_root: Union[str, Path]) -> PygLinkPropPredDataset:
+def get_link_dataset(dataset_name: str, dataset_root: Union[str, Path], transform=None) -> PygLinkPropPredDataset:
     """
     get a OGB link dataset from its name
     :param dataset_name: name of the dataset
@@ -28,7 +28,7 @@ def get_link_dataset(dataset_name: str, dataset_root: Union[str, Path]) -> PygLi
     :param transform: transformation to apply to dataset
     :return: dataset object
     """
-    dataset = PygLinkPropPredDataset(name=dataset_name, root=dataset_root, transform=T.ToSparseTensor())
+    dataset = PygLinkPropPredDataset(name=dataset_name, root=dataset_root, transform=transform)
     return dataset
 
 
@@ -56,16 +56,7 @@ def get_ogbl_ddi(dataset_root: Union[str, Path]) -> PygLinkPropPredDataset:
     :param dataset_root: root folder of the datasets
     :return: the dataset object
     """
-    return get_link_dataset('ogbl-ddi', dataset_root)
-
-
-def get_ogbl_wikikg2(dataset_root: Union[str, Path]) -> PygLinkPropPredDataset:
-    """
-    get ogbl-citation2 dataset
-    :param dataset_root: root folder of the datasets
-    :return: the dataset object
-    """
-    return get_link_dataset('ogbl-wikikg2', dataset_root)
+    return get_link_dataset('ogbl-ddi', dataset_root, transform=T.ToSparseTensor())
 
 
 def get_ogbl_citation2(dataset_root: Union[str, Path]) -> PygLinkPropPredDataset:
@@ -92,7 +83,7 @@ def get_ogbl_ppa(dataset_root: Union[str, Path]) -> PygLinkPropPredDataset:
     :param dataset_root: root folder of the datasets
     :return: the dataset object
     """
-    return get_link_dataset('ogbl-ppa', dataset_root)
+    return get_link_dataset('ogbl-ppa', dataset_root, T.ToSparseTensor())
 
 
 def get_ogbl_biokg(dataset_root: Union[str, Path]) -> PygLinkPropPredDataset:
@@ -101,7 +92,7 @@ def get_ogbl_biokg(dataset_root: Union[str, Path]) -> PygLinkPropPredDataset:
     :param dataset_root: root folder of the datasets
     :return: the dataset object
     """
-    return get_link_dataset('ogbl-biokg', dataset_root)
+    return get_link_dataset('ogbl-biokg', dataset_root, T.ToSparseTensor())
 
 
 def split_dataset(dataset: Union[NodePropPredDataset, PygLinkPropPredDataset]) -> Dict[str, Tensor]:
