@@ -502,9 +502,10 @@ def get_ogbl_data(dataset, device, cfg: DictConfig):
     if dataset_name == 'ppa':
         data.x = data.x.to(torch.float)
     elif dataset_name == 'collab':
-        if data.edge_weight is not None:
-            data.edge_weight = data.edge_weight.view(-1).to(torch.float)
-        data = T.ToSparseTensor()(data)
+        pass
+        # if data.edge_weight is not None:
+        #     data.edge_weight = data.edge_weight.view(-1).to(torch.float)
+        # data = T.ToSparseTensor()(data)
     # if not hasattr(data, 'x') or data.x is None:
     #     emb = torch.nn.Embedding(data.adj_t.size(0),
     #                              cfg.model.hidden_dim)

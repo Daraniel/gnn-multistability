@@ -74,7 +74,7 @@ def get_ogbl_collab(dataset_root: Union[str, Path]) -> PygLinkPropPredDataset:
     :param dataset_root: root folder of the datasets
     :return: the dataset object
     """
-    return get_link_dataset('ogbl-collab', dataset_root)
+    return get_link_dataset('ogbl-collab', dataset_root, T.ToSparseTensor())
 
 
 def get_ogbl_ppa(dataset_root: Union[str, Path]) -> PygLinkPropPredDataset:
@@ -92,7 +92,7 @@ def get_ogbl_biokg(dataset_root: Union[str, Path]) -> PygLinkPropPredDataset:
     :param dataset_root: root folder of the datasets
     :return: the dataset object
     """
-    return get_link_dataset('ogbl-biokg', dataset_root)
+    return get_link_dataset('ogbl-biokg', dataset_root, T.ToSparseTensor())
 
 
 def split_dataset(dataset: Union[NodePropPredDataset, PygLinkPropPredDataset]) -> Dict[str, Tensor]:

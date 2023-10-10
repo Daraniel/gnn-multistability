@@ -243,9 +243,9 @@ def stability_experiments(cfg: DictConfig, predictions_dir: Path,
     log.info("Calculating stability of predictions...")
     num_classes = 2
     if task_type == TaskType.LINK_PREDICTION:
-        num_classes = dataset.num_classes
         distr = None
     else:
+        num_classes = dataset.num_classes
         distr = evaluation.predictions.classification_node_distr(
             predictions, num_classes   # type:ignore
         )
