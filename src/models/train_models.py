@@ -147,6 +147,11 @@ def train_models(cfg, activations_root, predictions_dir, dataset: Union[Dict[str
                 Path(os.getcwd(), "checkpoint.pt"),
                 Path(checkpoint_dir, "checkpoint.pt"),
             )
+        if Path(os.getcwd(), "checkpoint_predictor.pt").exists():
+            shutil.move(
+                Path(os.getcwd(), "checkpoint_predictor.pt"),
+                Path(checkpoint_dir, "checkpoint_predictor.ptt"),
+            )
 
     # Some logging and simple heuristic to catch models that are far from optimally trained
     suboptimal_models = find_suboptimal_models(evals, task_type=task_type)
