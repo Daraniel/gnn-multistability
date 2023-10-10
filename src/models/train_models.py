@@ -15,7 +15,6 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.backends.cudnn
-import torch_geometric.transforms as T
 from ogb.linkproppred import Evaluator
 from omegaconf import DictConfig
 from torch import Tensor
@@ -52,11 +51,13 @@ def train_models(cfg, activations_root, predictions_dir, dataset: Union[Dict[str
     neg_predictions: List[torch.Tensor] = []
     neg_outputs_test: List[torch.Tensor] = []
     neg_logits_test: List[torch.Tensor] = []
-    neg_evals: List[Dict[str, float]] = []
     seed: int = cfg.seed
+    main_dataset = dataset  # preserve keep raw dataset
     for i in range(cfg.n_repeat):
         current_seed = seed + i
         init_seed = current_seed if not cfg.keep_init_seed_constant else seed
+        if task_type == TaskType.LINK_PREDICTION:
+            dataset = get_ogbl_data(main_dataset, cfg)
         if cfg.keep_train_seed_constant:
             log.info(f"Training model {i + 1} out of {cfg.n_repeat} with seed {seed} (init_seed={init_seed}).")
             model, eval_results, predictor = train_graph_classifier_model(cfg, dataset, init_seed=init_seed,
@@ -79,8 +80,7 @@ def train_models(cfg, activations_root, predictions_dir, dataset: Union[Dict[str
         with torch.no_grad():
             model.eval()
             if task_type == TaskType.LINK_PREDICTION:
-                data = get_ogbl_data(dataset, next(model.parameters()).device, cfg)
-                act = model.activations(data)
+                act = model.activations(dataset)
             else:
                 act = model.activations(dataset['test'])
             for key, acts in act.items():
@@ -95,8 +95,7 @@ def train_models(cfg, activations_root, predictions_dir, dataset: Union[Dict[str
                 temp_preds = None
                 temp_outputs = None
                 if task_type == TaskType.LINK_PREDICTION:
-                    data = get_ogbl_data(dataset, next(model.parameters()).device, cfg)
-                    h = model(data)
+                    h = model(dataset)
                     pos_test_edge = split_edge['test']['edge'].to(h.device)
                     neg_test_edge = split_edge['test']['edge_neg'].to(h.device)
 
@@ -172,17 +171,14 @@ def train_models(cfg, activations_root, predictions_dir, dataset: Union[Dict[str
     log.info("Finished training.")
 
 
-def train_graph_classifier_model(cfg: DictConfig, dataset: Union[Dataset, Dict[str, Dataset]],
+def train_graph_classifier_model(cfg: DictConfig, dataset: Union[Tensor, torch.nn.Embedding, Dict[str, Dataset]],
                                  init_seed: int, train_seed: int, task_type: TaskType,
                                  split_edge: Union[None, Dict[str, Tensor]]) \
         -> Tuple[torch.nn.Module, Dict[str, float], Union[None, torch.nn.Module]]:
     # Seeds are set later for training and initialization individually
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = False
-    if isinstance(cfg.cuda, str):
-        device = torch.device("cpu")
-    else:
-        device = torch.device(f"cuda:{cfg.cuda}" if torch.cuda.is_available() else "cpu")
+    device = get_device(cfg)
     log.info(f"Using device: {device}")
 
     # Build model
@@ -192,10 +188,18 @@ def train_graph_classifier_model(cfg: DictConfig, dataset: Union[Dataset, Dict[s
 
     predictor = None
     if task_type == TaskType.LINK_PREDICTION:
-        input_shape = dataset[0].num_features
+        input_shape = dataset.num_features
         model = get_model(cfg=cfg, in_dim=input_shape, out_dim=cfg.model.hidden_dim, task_type=task_type)
         predictor = LinkPredictor(cfg.model.hidden_dim, cfg.model.hidden_dim, 1,
                                   cfg.model.num_layers, cfg.model.dropout_p).to(device)
+        if hasattr(dataset, 'emb'):
+            torch.nn.init.xavier_uniform_(dataset.x)
+            # noinspection PyTypeChecker
+            optimizer = get_optimizer(
+                list(model.parameters()) + list(dataset.emb.parameters()) + list(predictor.parameters()), cfg.optim)
+        else:
+            # noinspection PyTypeChecker
+            optimizer = get_optimizer(list(model.parameters()) + list(predictor.parameters()), cfg.optim)
     else:
         train_dataset = dataset['train']
         valid_dataset = dataset['valid']
@@ -217,12 +221,12 @@ def train_graph_classifier_model(cfg: DictConfig, dataset: Union[Dataset, Dict[s
             valid_dataloader = DataLoader(valid_dataset, batch_size=valid_dataset.__len__(), shuffle=False)
         test_dataloader = DataLoader(test_dataset, batch_size=test_dataset.__len__(), shuffle=False)
         model = get_model(cfg=cfg, in_dim=input_shape, out_dim=output_shape, task_type=task_type)
+        optimizer = get_optimizer(model.parameters(), cfg.optim)
 
     # log.info(f"Model has {count_parameters(model)} parameters ({count_parameters(model, trainable=True)} trainable).")
 
     # Set up training
     pl.seed_everything(train_seed)
-    optimizer = get_optimizer(model.parameters(), cfg.optim)
     early_stopper = EarlyStopping(
         cfg.patience,
         verbose=True,
@@ -253,9 +257,14 @@ def train_graph_classifier_model(cfg: DictConfig, dataset: Union[Dataset, Dict[s
                                     criterion=criterion)
         if e == 0:
             # HINT: print number of parameters after handling first input to prevent some errors
-            log.info(
-                f"Model has {count_parameters(model)} parameters ({count_parameters(model, trainable=True)} trainable).")
-
+            log.info(f"Model has {count_parameters(model)} parameters"
+                     f" ({count_parameters(model, trainable=True)} trainable).")
+            if task_type == TaskType.LINK_PREDICTION:
+                log.info(f"Link Predictor has {count_parameters(predictor)} parameters"
+                         f" ({count_parameters(predictor, trainable=True)} trainable).")
+                if hasattr(dataset, 'emb'):
+                    log.info(f"Embedings has {count_parameters(dataset.emb)} parameters"
+                             f" ({count_parameters(dataset.emb, trainable=True)} trainable).")
         if task_type == TaskType.CLASSIFICATION:
             log.info(
                 f"time={time.perf_counter() - start:.2f} epoch={e}: "
@@ -305,15 +314,13 @@ def train_graph_classifier_model(cfg: DictConfig, dataset: Union[Dataset, Dict[s
 
 
 # this function is based on https://github.com/snap-stanford/ogb/blob/master/examples/linkproppred/collab/gnn.py
-def train_link_prediction_model_once(model: torch.nn.Module, predictor: torch.nn.Module, dataset: Dataset,
+def train_link_prediction_model_once(model: torch.nn.Module, predictor: torch.nn.Module, data,
                                      splits: Dict[str, Tensor], optimizer: torch.optim.Optimizer, cfg: DictConfig):
     device = next(model.parameters()).device
     pos_train_edge = splits['train']['edge'].to(device)
     model.train()
     predictor.train()
 
-    device = next(model.parameters()).device
-    data = get_ogbl_data(dataset, next(model.parameters()).device, cfg)
     # TODO: remove
     # if isinstance(data.x, torch.nn.Embedding):
     #     torch.nn.init.xavier_uniform_(data.x.weight)
@@ -413,12 +420,11 @@ def find_suboptimal_models(evals: List[Dict[str, float]], task_type: TaskType, a
 
 # this function is based on https://github.com/snap-stanford/ogb/blob/master/examples/linkproppred/collab/gnn.py
 @torch.no_grad()
-def evaluate_link_prediction(model: torch.nn.Module, predictor: torch.nn.Module, dataset: Dataset,
-                             split_edge: Dict[str, Tensor], cfg: DictConfig) -> Dict[str, float]:
+def evaluate_link_prediction(model: torch.nn.Module, predictor: torch.nn.Module,
+                             data: Union[Tensor, torch.nn.Embedding], split_edge: Dict[str, Tensor], cfg: DictConfig) \
+        -> Dict[str, float]:
     model.eval()
     predictor.eval()
-    data = get_ogbl_data(dataset, next(model.parameters()).device, cfg)
-
     h = model(data)
 
     pos_train_edge = split_edge['train']['edge'].to(h.device)
@@ -471,24 +477,27 @@ def evaluate_link_prediction(model: torch.nn.Module, predictor: torch.nn.Module,
 
     results = {}
     evaluator = Evaluator(name=f'ogbl-{get_dataset_name(cfg).lower()}')
-    for K in [10, 50, 100]:
-        evaluator.K = K
-        train_hits = evaluator.eval({
-            'y_pred_pos': pos_train_pred,
-            'y_pred_neg': neg_valid_pred,
-        })[f'hits@{K}']
-        valid_hits = evaluator.eval({
-            'y_pred_pos': pos_valid_pred,
-            'y_pred_neg': neg_valid_pred,
-        })[f'hits@{K}']
-        test_hits = evaluator.eval({
-            'y_pred_pos': pos_test_pred,
-            'y_pred_neg': neg_test_pred,
-        })[f'hits@{K}']
+    # for K in [10, 50, 100]:
+    #     evaluator.K = K
+    train_hits = evaluator.eval({
+        'y_pred_pos': pos_train_pred,
+        'y_pred_neg': neg_valid_pred,
+    })
+    valid_hits = evaluator.eval({
+        'y_pred_pos': pos_valid_pred,
+        'y_pred_neg': neg_valid_pred,
+    })
+    test_hits = evaluator.eval({
+        'y_pred_pos': pos_test_pred,
+        'y_pred_neg': neg_test_pred,
+    })
 
-        results[f'train_Hits@{K}'] = train_hits
-        results[f'valid_Hits@{K}'] = valid_hits
-        results[f'test_Hits@{K}'] = test_hits
+    for key, value in train_hits.items():
+        results[f'train_{key}'] = value
+    for key, value in valid_hits.items():
+        results[f'valid_{key}'] = value
+    for key, value in test_hits.items():
+        results[f'test_{key}'] = value
 
     results['train_loss'] = pos_train_pred_loss.item()
     results['valid_loss'] = pos_valid_pred_loss.item() + neg_valid_pred_loss.item()
@@ -496,7 +505,8 @@ def evaluate_link_prediction(model: torch.nn.Module, predictor: torch.nn.Module,
     return results
 
 
-def get_ogbl_data(dataset, device, cfg: DictConfig):
+def get_ogbl_data(dataset, cfg: DictConfig) -> Union[Tensor, torch.nn.Embedding]:
+    device = get_device(cfg)
     data = dataset[0].to(device)
     dataset_name = get_dataset_name(cfg)
     if dataset_name == 'ppa':
@@ -506,11 +516,20 @@ def get_ogbl_data(dataset, device, cfg: DictConfig):
         # if data.edge_weight is not None:
         #     data.edge_weight = data.edge_weight.view(-1).to(torch.float)
         # data = T.ToSparseTensor()(data)
-    # if not hasattr(data, 'x') or data.x is None:
-    #     emb = torch.nn.Embedding(data.adj_t.size(0),
-    #                              cfg.model.hidden_dim)
-    #     data.x = emb
+    elif dataset_name == 'ddi':
+        emb = torch.nn.Embedding(data.adj_t.size(0),
+                                 cfg.model.hidden_dim)
+        data.emb = emb
+        data.x = emb.weight
     return data
+
+
+def get_device(cfg: DictConfig):
+    if isinstance(cfg.cuda, str):
+        device = torch.device("cpu")
+    else:
+        device = torch.device(f"cuda:{cfg.cuda}" if torch.cuda.is_available() else "cpu")
+    return device
 
 
 @torch.no_grad()
