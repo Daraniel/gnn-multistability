@@ -88,17 +88,20 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
         multi_process=False,
     )
 
-    # procrustes experiment
-    run_experiments_with_function(
-        cfg=cfg,
-        figures_dir=figures_dir,
-        predictions_dir=predictions_dir,
-        cka_dir=cka_dir,
-        activations_root=activations_root,
-        function_to_use=get_procrustes,
-        calculating_function_name="procrustes",
-        multi_process=False,
-    )
+    try:
+        # procrustes experiment
+        run_experiments_with_function(
+            cfg=cfg,
+            figures_dir=figures_dir,
+            predictions_dir=predictions_dir,
+            cka_dir=cka_dir,
+            activations_root=activations_root,
+            function_to_use=get_procrustes,
+            calculating_function_name="procrustes",
+            multi_process=False,
+        )
+    except ValueError:
+        log.error("Unable to calculate procrustes due to random behavior in calculation, skipping it")
 
     # RSA experiments
     # noinspection PyProtectedMember
