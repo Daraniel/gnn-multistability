@@ -103,7 +103,7 @@ def train_models(cfg, activations_root, predictions_dir, dataset: Union[Dict[str
                     # noinspection PyTypeChecker
                     pos_test_preds = []
                     # noinspection PyTypeChecker
-                    for perm in DataLoader(range(pos_test_edge.size(0)), pos_test_edge.size(0)):
+                    for perm in DataLoader(range(pos_test_edge.size(0)), 64 * 1024):
                         edge = pos_test_edge[perm].t()
                         pos_test_preds += [predictor(h[edge[0]], h[edge[1]]).squeeze().cpu()]
                     pos_test_pred = torch.cat(pos_test_preds, dim=0)
@@ -115,7 +115,7 @@ def train_models(cfg, activations_root, predictions_dir, dataset: Union[Dict[str
 
                     neg_test_preds = []
                     # noinspection PyTypeChecker
-                    for perm in DataLoader(range(neg_test_edge.size(0)), neg_test_edge.size(0)):
+                    for perm in DataLoader(range(neg_test_edge.size(0)), 64 * 1024):
                         edge = neg_test_edge[perm].t()
                         neg_test_preds += [predictor(h[edge[0]], h[edge[1]]).squeeze().cpu()]
                     neg_test_pred = torch.cat(neg_test_preds, dim=0)
@@ -328,7 +328,7 @@ def train_link_prediction_model_once(model: torch.nn.Module, predictor: torch.nn
 
     total_loss = total_examples = 0
     # noinspection PyTypeChecker
-    for perm in DataLoader(range(pos_train_edge.size(0)), pos_train_edge.size(0), shuffle=True):
+    for perm in DataLoader(range(pos_train_edge.size(0)), 64 * 1024, shuffle=True):
         optimizer.zero_grad()
 
         h = model(data)
@@ -436,7 +436,7 @@ def evaluate_link_prediction(model: torch.nn.Module, predictor: torch.nn.Module,
 
     pos_train_preds = []
     # noinspection PyTypeChecker
-    for perm in DataLoader(range(pos_train_edge.size(0)), pos_train_edge.size(0)):
+    for perm in DataLoader(range(pos_train_edge.size(0)), 64 * 1024):
         edge = pos_train_edge[perm].t()
         pos_train_preds += [predictor(h[edge[0]], h[edge[1]]).squeeze().cpu()]
     pos_train_pred = torch.cat(pos_train_preds, dim=0)
@@ -444,7 +444,7 @@ def evaluate_link_prediction(model: torch.nn.Module, predictor: torch.nn.Module,
 
     pos_valid_preds = []
     # noinspection PyTypeChecker
-    for perm in DataLoader(range(pos_valid_edge.size(0)), pos_valid_edge.size(0)):
+    for perm in DataLoader(range(pos_valid_edge.size(0)), 64 * 1024):
         edge = pos_valid_edge[perm].t()
         pos_valid_preds += [predictor(h[edge[0]], h[edge[1]]).squeeze().cpu()]
     pos_valid_pred = torch.cat(pos_valid_preds, dim=0)
@@ -452,7 +452,7 @@ def evaluate_link_prediction(model: torch.nn.Module, predictor: torch.nn.Module,
 
     neg_valid_preds = []
     # noinspection PyTypeChecker
-    for perm in DataLoader(range(neg_valid_edge.size(0)), neg_valid_edge.size(0)):
+    for perm in DataLoader(range(neg_valid_edge.size(0)), 64 * 1024):
         edge = neg_valid_edge[perm].t()
         neg_valid_preds += [predictor(h[edge[0]], h[edge[1]]).squeeze().cpu()]
     neg_valid_pred = torch.cat(neg_valid_preds, dim=0)
@@ -462,7 +462,7 @@ def evaluate_link_prediction(model: torch.nn.Module, predictor: torch.nn.Module,
 
     pos_test_preds = []
     # noinspection PyTypeChecker
-    for perm in DataLoader(range(pos_test_edge.size(0)), pos_test_edge.size(0)):
+    for perm in DataLoader(range(pos_test_edge.size(0)), 64 * 1024):
         edge = pos_test_edge[perm].t()
         pos_test_preds += [predictor(h[edge[0]], h[edge[1]]).squeeze().cpu()]
     pos_test_pred = torch.cat(pos_test_preds, dim=0)
@@ -470,7 +470,7 @@ def evaluate_link_prediction(model: torch.nn.Module, predictor: torch.nn.Module,
 
     neg_test_preds = []
     # noinspection PyTypeChecker
-    for perm in DataLoader(range(neg_test_edge.size(0)), neg_test_edge.size(0)):
+    for perm in DataLoader(range(neg_test_edge.size(0)), 64 * 1024):
         edge = neg_test_edge[perm].t()
         neg_test_preds += [predictor(h[edge[0]], h[edge[1]]).squeeze().cpu()]
     neg_test_pred = torch.cat(neg_test_preds, dim=0)
