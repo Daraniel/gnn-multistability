@@ -111,7 +111,10 @@ class GIN(GNNBaseModel):
 
     def forward(self, data):
         if self.task_type == TaskType.LINK_PREDICTION:
-            x, edge_index, batch = data.x, data.adj_t, data.batch
+            if hasattr(data, 'x') and data.x is not None:
+                x, edge_index, batch = data.x, data.adj_t, data.batch
+            else:
+                x, edge_index, batch = data.emb.weight, data.adj_t, data.batch
         else:
             x, edge_index, batch = data.x, data.edge_index, data.batch
         # x = self.conv1(x, edge_index)
@@ -141,7 +144,10 @@ class GIN(GNNBaseModel):
         hs = {}
         device = next(self.parameters()).device
         if self.task_type == TaskType.LINK_PREDICTION:
-            x, edge_index = data.x.to(device), data.adj_t.to(device)
+            if hasattr(data, 'x') and data.x is not None:
+                x, edge_index = data.x.to(device), data.adj_t.to(device)
+            else:
+                x, edge_index = data.emb.weight.to(device), data.adj_t.to(device)
 
         else:
             x, edge_index = data.x.to(device), data.edge_index.to(device)
@@ -217,7 +223,10 @@ class GAT2017(GNNBaseModel):
 
     def forward(self, data):
         if self.task_type == TaskType.LINK_PREDICTION:
-            x, edge_index, batch = data.x, data.adj_t, data.batch
+            if hasattr(data, 'x') and data.x is not None:
+                x, edge_index, batch = data.x, data.adj_t, data.batch
+            else:
+                x, edge_index, batch = data.emb.weight, data.adj_t, data.batch
         else:
             x, edge_index, batch = data.x, data.edge_index, data.batch
         for layer in self.layers:
@@ -241,8 +250,10 @@ class GAT2017(GNNBaseModel):
         hs = {}
         device = next(self.parameters()).device
         if self.task_type == TaskType.LINK_PREDICTION:
-            x, edge_index = data.x.to(device), data.adj_t.to(device)
-
+            if hasattr(data, 'x') and data.x is not None:
+                x, edge_index = data.x.to(device), data.adj_t.to(device)
+            else:
+                x, edge_index = data.emb.weight.to(device), data.adj_t.to(device)
         else:
             x, edge_index = data.x.to(device), data.edge_index.to(device)
         for i, layer in enumerate(self.layers[:-1], start=1):  # type:ignore
@@ -258,41 +269,6 @@ class GAT2017(GNNBaseModel):
 
 # based on https://github.com/mklabunde/gnn-prediction-instability/blob/main/src/models/gnn.py
 class GCN2017(GNNBaseModel):
-    # def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
-    #              task_type: TaskType, *args, **kwargs) -> None:
-    #     super().__init__()
-    #     self.convs = torch.nn.ModuleList()
-    #     self.convs.append(GCNConv(in_dim, hidden_dim, cached=True))
-    #     for _ in range(num_layers - 2):
-    #         self.convs.append(
-    #             GCNConv(hidden_dim, hidden_dim, cached=True))
-    #     self.convs.append(GCNConv(hidden_dim, out_dim, cached=True))
-    #
-    #     self.dropout = dropout_p
-    #     self.task_type = task_type
-    #
-    # def reset_parameters(self):
-    #     for conv in self.convs:
-    #         conv.reset_parameters()
-    #
-    # def forward(self, data):
-    #     x, adj_t = data.x, data.adj_t
-    #     for conv in self.convs[:-1]:
-    #         x = conv(x, adj_t)
-    #         x = F.relu(x)
-    #         x = F.dropout(x, p=self.dropout, training=self.training)
-    #     x = self.convs[-1](x, adj_t)
-    #     return x
-    #
-    # def activations(self, data):
-    #     hs = {}
-    #     device = next(self.parameters()).device
-    #     x, adj_t = data.x.to(device), data.adj_t.to(device)
-    #     for i, layer in enumerate(self.convs[:-1], start=1):  # type:ignore
-    #         x = layer(x, adj_t)  # type:ignore
-    #         hs[f"{i}.0"] = x
-    #     return hs
-
     def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
                  task_type: TaskType, **kwargs) -> None:
         super().__init__()
@@ -326,7 +302,10 @@ class GCN2017(GNNBaseModel):
 
     def forward(self, data):
         if self.task_type == TaskType.LINK_PREDICTION:
-            x, edge_index, batch = data.x, data.adj_t, data.batch
+            if hasattr(data, 'x') and data.x is not None:
+                x, edge_index, batch = data.x, data.adj_t, data.batch
+            else:
+                x, edge_index, batch = data.emb.weight, data.adj_t, data.batch
         else:
             x, edge_index, batch = data.x, data.edge_index, data.batch
         for layer in self.layers:
@@ -349,7 +328,10 @@ class GCN2017(GNNBaseModel):
         hs = {}
         device = next(self.parameters()).device
         if self.task_type == TaskType.LINK_PREDICTION:
-            x, edge_index = data.x.to(device), data.adj_t.to(device)
+            if hasattr(data, 'x') and data.x is not None:
+                x, edge_index = data.x.to(device), data.adj_t.to(device)
+            else:
+                x, edge_index = data.emb.weight.to(device), data.adj_t.to(device)
 
         else:
             x, edge_index = data.x.to(device), data.edge_index.to(device)
@@ -390,7 +372,10 @@ class GatedGCN(GNNBaseModel):
 
     def forward(self, data):
         if self.task_type == TaskType.LINK_PREDICTION:
-            x, edge_index, batch = data.x, data.adj_t, data.batch
+            if hasattr(data, 'x') and data.x is not None:
+                x, edge_index, batch = data.x, data.adj_t, data.batch
+            else:
+                x, edge_index, batch = data.emb.weight, data.adj_t, data.batch
         else:
             x, edge_index, batch = data.x, data.edge_index, data.batch
         for layer in self.layers:
@@ -414,8 +399,10 @@ class GatedGCN(GNNBaseModel):
         hs = {}
         device = next(self.parameters()).device
         if self.task_type == TaskType.LINK_PREDICTION:
-            x, edge_index = data.x.to(device), data.adj_t.to(device)
-
+            if hasattr(data, 'x') and data.x is not None:
+                x, edge_index = data.x.to(device), data.adj_t.to(device)
+            else:
+                x, edge_index = data.emb.weight.to(device), data.adj_t.to(device)
         else:
             x, edge_index = data.x.to(device), data.edge_index.to(device)
         for i, layer in enumerate(self.layers[:-1], start=1):  # type:ignore
@@ -463,7 +450,10 @@ class GraphSAGE(GNNBaseModel):
 
     def forward(self, data):
         if self.task_type == TaskType.LINK_PREDICTION:
-            x, edge_index, batch = data.x, data.adj_t, data.batch
+            if hasattr(data, 'x') and data.x is not None:
+                x, edge_index, batch = data.x, data.adj_t, data.batch
+            else:
+                x, edge_index, batch = data.emb.weight, data.adj_t, data.batch
         else:
             x, edge_index, batch = data.x, data.edge_index, data.batch
         for layer in self.layers:
@@ -487,7 +477,10 @@ class GraphSAGE(GNNBaseModel):
         hs = {}
         device = next(self.parameters()).device
         if self.task_type == TaskType.LINK_PREDICTION:
-            x, edge_index = data.x.to(device), data.adj_t.to(device)
+            if hasattr(data, 'x') and data.x is not None:
+                x, edge_index = data.x.to(device), data.adj_t.to(device)
+            else:
+                x, edge_index = data.emb.weight.to(device), data.adj_t.to(device)
 
         else:
             x, edge_index = data.x.to(device), data.edge_index.to(device)
@@ -536,7 +529,10 @@ class ResGatedGCN(GNNBaseModel):
 
     def forward(self, data):
         if self.task_type == TaskType.LINK_PREDICTION:
-            x, edge_index, batch = data.x, data.adj_t, data.batch
+            if hasattr(data, 'x') and data.x is not None:
+                x, edge_index, batch = data.x, data.adj_t, data.batch
+            else:
+                x, edge_index, batch = data.emb.weight, data.adj_t, data.batch
         else:
             x, edge_index, batch = data.x, data.edge_index, data.batch
         for layer in self.layers:
@@ -560,7 +556,10 @@ class ResGatedGCN(GNNBaseModel):
         hs = {}
         device = next(self.parameters()).device
         if self.task_type == TaskType.LINK_PREDICTION:
-            x, edge_index = data.x.to(device), data.adj_t.to(device)
+            if hasattr(data, 'x') and data.x is not None:
+                x, edge_index = data.x.to(device), data.adj_t.to(device)
+            else:
+                x, edge_index = data.emb.weight.to(device), data.adj_t.to(device)
 
         else:
             x, edge_index = data.x.to(device), data.edge_index.to(device)
@@ -609,7 +608,10 @@ class ResGatedGCNs(GNNBaseModel):
 
     def forward(self, data):
         if self.task_type == TaskType.LINK_PREDICTION:
-            x, edge_index, batch = data.x, data.adj_t, data.batch
+            if hasattr(data, 'x') and data.x is not None:
+                x, edge_index, batch = data.x, data.adj_t, data.batch
+            else:
+                x, edge_index, batch = data.emb.weight, data.adj_t, data.batch
         else:
             x, edge_index, batch = data.x, data.edge_index, data.batch
         for layer in self.layers:
@@ -633,7 +635,10 @@ class ResGatedGCNs(GNNBaseModel):
         hs = {}
         device = next(self.parameters()).device
         if self.task_type == TaskType.LINK_PREDICTION:
-            x, edge_index = data.x.to(device), data.adj_t.to(device)
+            if hasattr(data, 'x') and data.x is not None:
+                x, edge_index = data.x.to(device), data.adj_t.to(device)
+            else:
+                x, edge_index = data.emb.weight.to(device), data.adj_t.to(device)
 
         else:
             x, edge_index = data.x.to(device), data.edge_index.to(device)

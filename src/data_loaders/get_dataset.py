@@ -33,6 +33,7 @@ DATASETS = {
     'ppa': ogb.get_ogbl_ppa,
     'biokg': ogb.get_ogbl_biokg,
     'citation2': ogb.get_ogbl_citation2,
+    'wikikg2': ogb.get_ogbl_wikikg2,
 
     # graph regression
     'alchemy': tu.get_alchemy,

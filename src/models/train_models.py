@@ -193,7 +193,7 @@ def train_graph_classifier_model(cfg: DictConfig, dataset: Union[Tensor, torch.n
         predictor = LinkPredictor(cfg.model.hidden_dim, cfg.model.hidden_dim, 1,
                                   cfg.model.num_layers, cfg.model.dropout_p).to(device)
         if hasattr(dataset, 'emb'):
-            torch.nn.init.xavier_uniform_(dataset.x)
+            torch.nn.init.xavier_uniform_(dataset.emb.weight)
             # noinspection PyTypeChecker
             optimizer = get_optimizer(
                 list(model.parameters()) + list(dataset.emb.parameters()) + list(predictor.parameters()), cfg.optim)
@@ -519,8 +519,7 @@ def get_ogbl_data(dataset, cfg: DictConfig) -> Union[Tensor, torch.nn.Embedding]
     elif dataset_name == 'ddi':
         emb = torch.nn.Embedding(data.adj_t.size(0),
                                  cfg.model.hidden_dim)
-        data.emb = emb
-        data.x = emb.weight
+        data.emb = emb.to(device)
     return data
 
 
