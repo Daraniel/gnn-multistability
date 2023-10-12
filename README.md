@@ -80,6 +80,9 @@ The following datasets are fully supported:
 | Graph Regression     | toluene        | TUDataset   |
 | Graph Regression     | uracil         | TUDataset   |
 | Graph Regression     | naphthalene    | TUDataset   |
+| Graph Regression     | alchemy        | TUDataset   |
+| Graph Regression     | zinc           | TUDataset   |
+| Graph Regression     | qm9            | TUDataset   |
 
 Code and config contain some other datasets, but they may or may not work correctly
 (some more infor are provided in `src/data_loaders/get_dataset.py` in `DATASETS` dictionary next to their names)
@@ -99,3 +102,23 @@ when the input shape is smaller than their hidden dimension and `gin` model does
 #### plots
 
 helper functions used for plotting things (used in the evaluation step)
+
+MSELoss:
+[2023-10-11 11:46:14,159][models.train_models][INFO] - Model has 625 parameters (625 trainable).
+[2023-10-11 11:46:14,159][models.train_models][INFO] - time=124.87 epoch=0: train_loss=0.006, valid_loss=0.000
+[2023-10-11 11:47:57,008][models.train_models][INFO] - time=227.72 epoch=1: train_loss=0.000, valid_loss=0.000
+[2023-10-11 11:49:40,984][models.train_models][INFO] - time=331.69 epoch=2: train_loss=0.000, valid_loss=0.000
+[2023-10-11 11:51:25,111][models.train_models][INFO] - time=435.82 epoch=3: train_loss=0.000, valid_loss=0.000
+[2023-10-11 11:53:04,175][models.train_models][INFO] - time=534.88 epoch=4: train_loss=0.000, valid_loss=0.000
+[2023-10-11 11:53:04,178][models.train_models][INFO] - Reverting to model with best val loss
+[2023-10-11 11:54:08,264][models.train_models][INFO] - train_loss=0.000, valid_loss=0.000, test_loss=0.000
+
+L1Loss
+[2023-10-11 12:00:22,759][models.train_models][INFO] - Model has 625 parameters (625 trainable).
+[2023-10-11 12:00:22,759][models.train_models][INFO] - time=115.24 epoch=0: train_loss=0.052, valid_loss=0.002
+[2023-10-11 12:01:58,015][models.train_models][INFO] - time=210.50 epoch=1: train_loss=0.002, valid_loss=0.002
+[2023-10-11 12:03:34,218][models.train_models][INFO] - time=306.70 epoch=2: train_loss=0.002, valid_loss=0.003
+[2023-10-11 12:05:09,405][models.train_models][INFO] - time=401.89 epoch=3: train_loss=0.001, valid_loss=0.000
+[2023-10-11 12:06:44,922][models.train_models][INFO] - time=497.40 epoch=4: train_loss=0.002, valid_loss=0.000
+[2023-10-11 12:06:44,926][models.train_models][INFO] - Reverting to model with best val loss
+[2023-10-11 12:07:41,579][models.train_models][INFO] - train_loss=0.000, valid_loss=0.000, test_loss=0.000

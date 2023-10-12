@@ -1,5 +1,7 @@
 name: gnn-multistability
 channels:
+  - pyg
+  - pytorch
   - conda-forge
   - defaults
 dependencies:
