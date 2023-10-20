@@ -397,7 +397,7 @@ def num_graphs(data):
 def find_suboptimal_models(evals: List[Dict[str, float]], task_type: TaskType, allowed_deviation: int = 2) \
         -> Dict[str, List[Tuple[int, float]]]:
     results = {}
-    if task_type != TaskType.REGRESSION:
+    if task_type == TaskType.CLASSIFICATION:
         metric = "acc"
     else:
         metric = "loss"
