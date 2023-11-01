@@ -661,8 +661,8 @@ class MPNN(GNNBaseModel):
         super(MPNN, self).__init__()
         self.lin0 = torch.nn.Linear(in_dim, hidden_dim)
 
-        # nn = Sequential(Linear(5, 128), ReLU(), Linear(128, hidden_dim * hidden_dim))
-        nn = Sequential(Linear(5, hidden_dim), ReLU(), Linear(hidden_dim, hidden_dim * hidden_dim))
+        nn = Sequential(Linear(5, 128), ReLU(), Linear(128, hidden_dim * hidden_dim))
+        # nn = Sequential(Linear(5, hidden_dim), ReLU(), Linear(hidden_dim, hidden_dim * hidden_dim))
         self.conv = NNConv(hidden_dim, hidden_dim, nn, aggr='mean')
         self.gru = GRU(hidden_dim, hidden_dim)
 
