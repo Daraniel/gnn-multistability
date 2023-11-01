@@ -671,11 +671,12 @@ class MPNN(GNNBaseModel):
         self.num_layers = num_layers
 
     def forward(self, data):
-        out = F.relu(self.lin0(data.x))
+        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+        out = F.relu(self.lin0(x))
         h = out.unsqueeze(0)
 
         for i in range(self.num_layers):
-            m = F.relu(self.conv(out, data.edge_index, data.edge_attr))
+            m = F.relu(self.conv(out, edge_index, edge_attr))
             out, h = self.gru(m.unsqueeze(0), h)
             out = out.squeeze(0)
 
@@ -687,9 +688,9 @@ class MPNN(GNNBaseModel):
     def activations(self, data) -> Dict[str, torch.Tensor]:
         hs = {}
         device = next(self.parameters()).device
-        edge_index, edge_attr = data.edge_index.to(device), data.edge_attr.to(device)
+        x, edge_index, edge_attr = data.x.to(device), data.edge_index.to(device), data.edge_attr.to(device)
 
-        out = F.relu(self.lin0(data.x.to(device)))
+        out = F.relu(self.lin0(x))
         h = out.unsqueeze(0)
 
         for i in range(self.num_layers):
@@ -698,8 +699,8 @@ class MPNN(GNNBaseModel):
             out = out.squeeze(0)
             hs[f"{i}.0"] = out
 
-        out = self.set2set(out, data.batch)
-        hs[f"{self.num_layers}.0"] = out
+        # out = self.set2set(out, data.batch)
+        # hs[f"{self.num_layers}.0"] = out
         # out = F.relu(self.lin1(out))
         # out = self.lin2(out)
         return hs
