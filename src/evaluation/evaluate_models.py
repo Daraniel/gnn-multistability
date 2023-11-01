@@ -77,16 +77,16 @@ def evaluate_models(cfg: DictConfig, activations_root, dataset: Dict[str, torch_
     )
 
     # CCA experiment
-    run_experiments_with_function(
-        cfg=cfg,
-        figures_dir=figures_dir,
-        predictions_dir=predictions_dir,
-        cka_dir=cka_dir,
-        activations_root=activations_root,
-        function_to_use=get_cca,
-        calculating_function_name="CCA",
-        multi_process=False,
-    )
+    # run_experiments_with_function(
+    #     cfg=cfg,
+    #     figures_dir=figures_dir,
+    #     predictions_dir=predictions_dir,
+    #     cka_dir=cka_dir,
+    #     activations_root=activations_root,
+    #     function_to_use=get_cca,
+    #     calculating_function_name="CCA",
+    #     multi_process=False,
+    # )
 
     try:
         # procrustes experiment
