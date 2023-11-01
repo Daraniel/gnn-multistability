@@ -661,11 +661,13 @@ class MPNN(GNNBaseModel):
         super(MPNN, self).__init__()
         self.lin0 = torch.nn.Linear(in_dim, hidden_dim)
 
-        nn = Sequential(Linear(5, 128), ReLU(), Linear(128, hidden_dim * hidden_dim))
+        # nn = Sequential(Linear(5, 128), ReLU(), Linear(128, hidden_dim * hidden_dim))
+        nn = Sequential(Linear(5, hidden_dim), ReLU(), Linear(hidden_dim, hidden_dim * hidden_dim))
         self.conv = NNConv(hidden_dim, hidden_dim, nn, aggr='mean')
         self.gru = GRU(hidden_dim, hidden_dim)
 
         self.set2set = Set2Set(hidden_dim, processing_steps=3)
+        # self.lin1 = torch.nn.Linear(2 * hidden_dim, hidden_dim)
         self.lin1 = torch.nn.Linear(2 * hidden_dim, hidden_dim)
         self.lin2 = torch.nn.Linear(hidden_dim, out_dim)
         self.num_layers = num_layers
@@ -686,24 +688,25 @@ class MPNN(GNNBaseModel):
         return out.view(-1)
 
     def activations(self, data) -> Dict[str, torch.Tensor]:
-        hs = {}
-        device = next(self.parameters()).device
-        x, edge_index, edge_attr = data.x.to(device), data.edge_index.to(device), data.edge_attr.to(device)
-
-        out = F.relu(self.lin0(x))
-        h = out.unsqueeze(0)
-
-        for i in range(self.num_layers):
-            m = F.relu(self.conv(out, edge_index, edge_attr))
-            out, h = self.gru(m.unsqueeze(0), h)
-            out = out.squeeze(0)
-            hs[f"{i}.0"] = out
-
-        # out = self.set2set(out, data.batch)
-        # hs[f"{self.num_layers}.0"] = out
-        # out = F.relu(self.lin1(out))
-        # out = self.lin2(out)
-        return hs
+        raise NotImplementedError()  # this function has some random errors
+        # hs = {}
+        # device = next(self.parameters()).device
+        # x, edge_index, edge_attr = data.x.to(device), data.edge_index.to(device), data.edge_attr.to(device)
+        #
+        # out = F.relu(self.lin0(x))
+        # h = out.unsqueeze(0)
+        #
+        # for i in range(self.num_layers):
+        #     m = F.relu(self.conv(out, edge_index, edge_attr))
+        #     out, h = self.gru(m.unsqueeze(0), h)
+        #     out = out.squeeze(0)
+        #     hs[f"{i}.0"] = out
+        #
+        # # out = self.set2set(out, data.batch)
+        # # hs[f"{self.num_layers}.0"] = out
+        # # out = F.relu(self.lin1(out))
+        # # out = self.lin2(out)
+        # return hs
 
 
 # # based on https://github.com/KarolisMart/DropGNN/blob/main/mpnn-qm9.py
