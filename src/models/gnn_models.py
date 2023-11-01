@@ -662,12 +662,10 @@ class MPNN(GNNBaseModel):
         self.lin0 = torch.nn.Linear(in_dim, hidden_dim)
 
         nn = Sequential(Linear(5, 128), ReLU(), Linear(128, hidden_dim * hidden_dim))
-        # nn = Sequential(Linear(5, hidden_dim), ReLU(), Linear(hidden_dim, hidden_dim * hidden_dim))
         self.conv = NNConv(hidden_dim, hidden_dim, nn, aggr='mean')
         self.gru = GRU(hidden_dim, hidden_dim)
 
         self.set2set = Set2Set(hidden_dim, processing_steps=3)
-        # self.lin1 = torch.nn.Linear(2 * hidden_dim, hidden_dim)
         self.lin1 = torch.nn.Linear(2 * hidden_dim, hidden_dim)
         self.lin2 = torch.nn.Linear(hidden_dim, out_dim)
         self.num_layers = num_layers
