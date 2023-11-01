@@ -3,29 +3,19 @@ from pathlib import Path
 from typing import Dict, Union
 
 import torch
+import torch_geometric
+import torch_geometric.transforms as T
 import torch_geometric.transforms as transforms
 from sklearn.model_selection import train_test_split
 from torch_geometric.data import Dataset
-from torch_geometric.datasets import TUDataset
-from torch_geometric.utils import degree
+from torch_geometric.datasets import TUDataset, QM9
+from torch_geometric.utils import degree, remove_self_loops
 
 from common.exceptions import DataWorkflowException
 
 CLASSIFICATION_DATASETS = {'aids', 'enzymes', 'ptc_fm', 'proteins', 'yeast'}
 REGRESSION_DATASETS = {'alchemy', 'aspirin', 'qm9', 'toluene', 'naphthalene', 'salicylic_acid', 'zinc', 'uracil'}
-SINGLE_VALUE_REGRESSION_DATASETS = {'aspirin', 'toluene', 'naphthalene', 'salicylic_acid', 'uracil'}
-
-
-class NormalizedDegree(object):
-    def __init__(self, mean, std):
-        self.mean = mean
-        self.std = std
-
-    def __call__(self, data):
-        deg = degree(data.edge_index[0], dtype=torch.float)
-        deg = (deg - self.mean) / self.std
-        data.x = deg.view(-1, 1)
-        return data
+SINGLE_VALUE_REGRESSION_DATASETS = {'aspirin', 'qm9', 'toluene', 'naphthalene', 'salicylic_acid', 'zinc_full', 'uracil'}
 
 
 def get_dataset(dataset_name, dataset_root: Union[str, Path]) -> Dataset:
@@ -132,6 +122,55 @@ def get_aspirin(dataset_root: Union[str, Path]) -> Dataset:
     return get_dataset(dataset_name, dataset_root)
 
 
+# this function is based on https://github.com/KarolisMart/DropGNN/blob/main/mpnn-qm9.py
+class NormalizedDegree(object):
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, data):
+        deg = degree(data.edge_index[0], dtype=torch.float)
+        deg = (deg - self.mean) / self.std
+        data.x = deg.view(-1, 1)
+        return data
+
+
+# this function is based on https://github.com/KarolisMart/DropGNN/blob/main/mpnn-qm9.py
+class MyTransform(object):
+    def __call__(self, data):
+        # Specify target.
+        data.y = data.y[:, 1]
+        return data
+
+
+# this function is based on https://github.com/KarolisMart/DropGNN/blob/main/mpnn-qm9.py
+class Complete(object):
+    def __call__(self, data):
+        device = data.edge_index.device
+
+        row = torch.arange(data.num_nodes, dtype=torch.long, device=device)
+        col = torch.arange(data.num_nodes, dtype=torch.long, device=device)
+
+        row = row.view(-1, 1).repeat(1, data.num_nodes).view(-1)
+        col = col.repeat(data.num_nodes)
+        edge_index = torch.stack([row, col], dim=0)
+
+        edge_attr = None
+        if data.edge_attr is not None:
+            idx = data.edge_index[0] * data.num_nodes + data.edge_index[1]
+            size = list(data.edge_attr.size())
+            size[0] = data.num_nodes * data.num_nodes
+            edge_attr = data.edge_attr.new_zeros(size)
+            edge_attr[idx] = data.edge_attr
+
+        edge_index, edge_attr = remove_self_loops(edge_index, edge_attr)
+        data.edge_attr = edge_attr
+        data.edge_index = edge_index
+
+        return data
+
+
+# this function is based on https://github.com/KarolisMart/DropGNN/blob/main/mpnn-qm9.py
 def get_qm9(dataset_root: Union[str, Path]) -> Dataset:
     """
     get QM9 dataset
@@ -139,7 +178,17 @@ def get_qm9(dataset_root: Union[str, Path]) -> Dataset:
     :return: the dataset object
     """
     dataset_name = 'QM9'
-    return get_dataset(dataset_name, dataset_root)
+    # transform = T.Compose([MyTransform(), Complete()])
+    transform = T.Compose([MyTransform(), Complete(), T.Distance(norm=False)])
+    # transform = T.Compose([MyTransform(), T.Distance(norm=False)])
+    # transform = T.Compose([MyTransform()])
+    dataset = QM9(dataset_root, transform=transform).shuffle()
+    dataset.name = dataset_name
+    mean = dataset.data.y.mean(dim=0, keepdim=True)
+    std = dataset.data.y.std(dim=0, keepdim=True)
+    dataset.data.y = (dataset.data.y - mean) / std
+    return dataset
+    # return get_dataset(dataset_name, dataset_root)
 
 
 def get_toluene(dataset_root: Union[str, Path]) -> Dataset:
@@ -187,9 +236,9 @@ def split_dataset(dataset: TUDataset) -> Dict[str, Dataset]:
     split_edge the given dataset to train, valid and test split_edge
     :param dataset: dictionary of the split_edge
     """
-    if not isinstance(dataset, TUDataset):
+    if not(isinstance(dataset, TUDataset) or isinstance(dataset, torch_geometric.datasets.qm9.QM9)):
         raise DataWorkflowException(
-            f"Dataset type {type(dataset)} is not supported, only TUDatasett datasets are supported")
+            f"Dataset type {type(dataset)} is not supported, only TUDataset datasets and qm9 are supported")
 
     # One-hot degree if node labels are not available.
     # Following is taken from https://github.com/rusty1s/pytorch_geometric/blob/master/benchmark/kernel/datasets.py.

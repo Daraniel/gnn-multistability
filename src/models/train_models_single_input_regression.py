@@ -298,6 +298,7 @@ def train_graph_classifier_model(cfg: DictConfig, dataset: Union[Tensor, torch.n
             break
 
     log.info("Reverting to model with best val loss")
+    return
     if Path(early_stopper.path).exists():
         model.load_state_dict(torch.load(early_stopper.path))
         if predictor is not None:
@@ -573,8 +574,8 @@ def evaluate(model: torch.nn.Module, task_type: TaskType, train_dataloader: Opti
                 y_preds = torch.cat(y_preds)
                 results[f"{key}_acc"] = accuracy(y_preds.view(-1), ys)
             if criterion is not None:
-                if (outputs.shape[0] == ys.shape[0] and outputs.shape[1] == 1
-                        and len(ys.shape) == 1 and len(outputs.shape) == 2):
+                if (outputs.shape[0] == ys.shape[0] and len(outputs.shape) == 2 and outputs.shape[1] == 1
+                        and len(ys.shape) == 1):
                     # HINT: y is flattened but not output
                     loss = criterion(outputs, ys.view(outputs.shape)).item()
                 else:

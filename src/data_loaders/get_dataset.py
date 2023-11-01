@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Union, Dict, Tuple
 
+import torch_geometric
 from ogb.linkproppred import PygLinkPropPredDataset
 from ogb.nodeproppred import NodePropPredDataset
 from torch import Tensor
@@ -72,7 +73,7 @@ def split_dataset(dataset) -> Union[Tuple[Dict[str, Dataset], None], Tuple[Datas
     :return dictionary of the split datasets and a None split (tu dataset)
      or the full dataset and indices of split_edge (ogb dataset)
     """
-    if isinstance(dataset, TUDataset):
+    if isinstance(dataset, TUDataset) or isinstance(dataset, torch_geometric.datasets.qm9.QM9):
         return tu.split_dataset(dataset), None
     elif isinstance(dataset, NodePropPredDataset) or isinstance(dataset, PygLinkPropPredDataset):
         # raise NotImplementedError("ogb is not implemented yet")  # TODO: implement

@@ -6,9 +6,10 @@ import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig
 from torch import nn
-from torch.nn import Linear, Sequential, ReLU, BatchNorm1d as BN
+from torch.nn import Linear, Sequential, ReLU, BatchNorm1d as BN, GRU
 # noinspection PyProtectedMember
-from torch_geometric.nn import GINConv, global_mean_pool, GATConv, GCNConv, SAGEConv, GatedGraphConv, ResGatedGraphConv
+from torch_geometric.nn import GINConv, global_mean_pool, GATConv, GCNConv, SAGEConv, GatedGraphConv, ResGatedGraphConv, \
+    NNConv, Set2Set
 
 from common.utils import TaskType
 
@@ -653,6 +654,156 @@ class ResGatedGCNs(GNNBaseModel):
         return hs
 
 
+# based on https://github.com/KarolisMart/DropGNN/blob/main/mpnn-qm9.py
+class MPNN(GNNBaseModel):
+    def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
+                 task_type: TaskType, **kwargs) -> None:
+        super(MPNN, self).__init__()
+        self.lin0 = torch.nn.Linear(in_dim, hidden_dim)
+
+        nn = Sequential(Linear(5, 128), ReLU(), Linear(128, hidden_dim * hidden_dim))
+        self.conv = NNConv(hidden_dim, hidden_dim, nn, aggr='mean')
+        self.gru = GRU(hidden_dim, hidden_dim)
+
+        self.set2set = Set2Set(hidden_dim, processing_steps=3)
+        self.lin1 = torch.nn.Linear(2 * hidden_dim, hidden_dim)
+        self.lin2 = torch.nn.Linear(hidden_dim, out_dim)
+        self.num_layers = num_layers
+
+    def forward(self, data):
+        out = F.relu(self.lin0(data.x))
+        h = out.unsqueeze(0)
+
+        for i in range(self.num_layers):
+            m = F.relu(self.conv(out, data.edge_index, data.edge_attr))
+            out, h = self.gru(m.unsqueeze(0), h)
+            out = out.squeeze(0)
+
+        out = self.set2set(out, data.batch)
+        out = F.relu(self.lin1(out))
+        out = self.lin2(out)
+        return out.view(-1)
+
+    def activations(self, data) -> Dict[str, torch.Tensor]:
+        hs = {}
+        device = next(self.parameters()).device
+        edge_index, edge_attr = data.edge_index.to(device), data.edge_attr.to(device)
+
+        out = F.relu(self.lin0(data.x.to(device)))
+        h = out.unsqueeze(0)
+
+        for i in range(self.num_layers):
+            m = F.relu(self.conv(out, edge_index, edge_attr))
+            out, h = self.gru(m.unsqueeze(0), h)
+            out = out.squeeze(0)
+            hs[f"{i}.0"] = out
+
+        out = self.set2set(out, data.batch)
+        hs[f"{self.num_layers}.0"] = out
+        # out = F.relu(self.lin1(out))
+        # out = self.lin2(out)
+        return hs
+
+
+# # based on https://github.com/KarolisMart/DropGNN/blob/main/mpnn-qm9.py
+# class DropMPNN(torch.nn.Module):
+#     def __init__(self, in_dim: int, out_dim: int, num_layers: int, hidden_dim: int, dropout_p: float,
+#                  task_type: TaskType, **kwargs) -> None:
+#         super(DropMPNN, self).__init__()
+#         self.lin0 = torch.nn.Linear(in_dim, hidden_dim)
+#
+#         nn = Sequential(Linear(5, 128), ReLU(), Linear(128, hidden_dim * hidden_dim))
+#         self.conv = NNConv(hidden_dim, hidden_dim, nn, aggr='mean')
+#         self.gru = GRU(hidden_dim, hidden_dim)
+#
+#         self.set2set = Set2Set(hidden_dim, processing_steps=3)
+#         self.lin1 = torch.nn.Linear(2 * hidden_dim, hidden_dim)
+#         self.lin2 = torch.nn.Linear(hidden_dim, 1)
+#
+#         self.num_layers = num_layers
+#         self.num_runs = 1
+#         self.dropout_p = dropout_p
+#         # if args.aux_loss:
+#         #     self.set2set_aux = Set2Set(hidden_dim, processing_steps=3)
+#         #     self.lin1_aux = torch.nn.Linear(2 * hidden_dim, hidden_dim)
+#         #     self.lin2_aux = torch.nn.Linear(hidden_dim, 1)
+#
+#     def forward(self, data):
+#         device = next(self.parameters()).device
+#         aux_x = None
+#         # Do runs in paralel, by repeating the graphs in the batch
+#         x = data.x
+#         x = x.unsqueeze(0).expand(self.num_runs, -1, -1).clone()
+#         drop = torch.bernoulli(torch.ones([x.size(0), x.size(1)], device=device) * self.dropout_p).bool()
+#         x[drop] = torch.zeros([drop.sum().long().item(), x.size(-1)], device=device)
+#         del drop
+#         x = x.view(-1, x.size(-1))
+#         run_edge_index = data.edge_index.repeat(1, self.num_runs) + torch.arange(self.num_runs,
+#                                                                                  device=device).repeat_interleave(
+#             data.edge_index.size(1)) * (data.edge_index.max() + 1)
+#         run_edge_attr = data.edge_attr.repeat(self.num_runs, 1)
+#         x = F.relu(self.lin0(x))
+#         h = x.unsqueeze(0)
+#         for i in range(self.num_layers):
+#             m = F.relu(self.conv(x, run_edge_index, run_edge_attr))
+#             x, h = self.gru(m.unsqueeze(0), h)
+#             x = x.squeeze(0)
+#         del run_edge_index, run_edge_attr
+#         # if args.aux_loss:
+#         #     run_batch = data.batch.repeat(self.num_runs) + torch.arange(self.num_runs, device=device).repeat_interleave(data.batch.size(0)) * (data.batch.max() + 1)
+#         #     aux_x = self.set2set_aux(x, run_batch)
+#         #     del run_batch
+#         #     aux_x = F.relu(self.lin1_aux(aux_x))
+#         #     aux_x = self.lin2_aux(aux_x)
+#         #     aux_x = aux_x.view(self.num_runs, -1, aux_x.size(-1))
+#         x = x.view(self.num_runs, -1, x.size(-1))
+#         x = x.mean(dim=0)
+#
+#         x = self.set2set(x, data.batch)
+#         x = F.relu(self.lin1(x))
+#         x = self.lin2(x)
+#         return x.view(-1)
+#
+#     def activations(self, data) -> Dict[str, torch.Tensor]:
+#         hs = {}
+#         device = next(self.parameters()).device
+#         aux_x = None
+#         # Do runs in paralel, by repeating the graphs in the batch
+#         x = data.x.to(device)
+#         x = x.unsqueeze(0).expand(self.num_runs, -1, -1).clone()
+#         edge_index, edge_attr = data.edge_index.to(device), data.edge_attr.to(device)
+#         drop = torch.bernoulli(torch.ones([x.size(0), x.size(1)], device=device) * self.dropout_p).bool()
+#         x[drop] = torch.zeros([drop.sum().long().item(), x.size(-1)], device=device)
+#         del drop
+#         x = x.view(-1, x.size(-1))
+#         run_edge_index = edge_index.repeat(1, self.num_runs) + torch.arange(self.num_runs,
+#                                                                             device=device).repeat_interleave(
+#             edge_index.size(1)) * (edge_index.max() + 1)
+#         run_edge_attr = edge_attr.repeat(self.num_runs, 1)
+#         x = F.relu(self.lin0(x))
+#         h = x.unsqueeze(0)
+#         for i in range(self.num_layers):
+#             m = F.relu(self.conv(x, run_edge_index, run_edge_attr))
+#             x, h = self.gru(m.unsqueeze(0), h)
+#             x = x.squeeze(0)
+#             hs[f"{i}.0"] = x
+#
+#         del run_edge_index, run_edge_attr
+#         # if args.aux_loss:
+#         #     run_batch = data.batch.repeat(self.num_runs) + torch.arange(self.num_runs, device=device).repeat_interleave(data.batch.size(0)) * (data.batch.max() + 1)
+#         #     aux_x = self.set2set_aux(x, run_batch)
+#         #     del run_batch
+#         #     aux_x = F.relu(self.lin1_aux(aux_x))
+#         #     aux_x = self.lin2_aux(aux_x)
+#         #     aux_x = aux_x.view(self.num_runs, -1, aux_x.size(-1))
+#         x = x.view(self.num_runs, -1, x.size(-1))
+#         x = x.mean(dim=0)
+#
+#         x = self.set2set(x, data.batch)
+#         hs[f"{self.num_layers}.0"] = x
+#         return hs
+
+
 MODELS: Dict[str, Type[GNNBaseModel]] = {
     'gin': GIN,
     'gat': GAT2017,
@@ -660,6 +811,8 @@ MODELS: Dict[str, Type[GNNBaseModel]] = {
     'gatedgcn': GatedGCN,
     'graphsage': GraphSAGE,
     'resgatedgcn': ResGatedGCN,
+    'mpnn': MPNN,
+    # 'drop_mpnn': DropMPNN,
 }
 
 
