@@ -245,7 +245,7 @@ def stability_experiments(cfg: DictConfig, predictions_dir: Path,
                           task_type: TaskType):
     log.info("Calculating stability of predictions...")
     num_classes = 2
-    if task_type == TaskType.LINK_PREDICTION:
+    if task_type == TaskType.LINK_PREDICTION or get_dataset_name(cfg) == 'qm9':
         distr = None
     else:
         if task_type == TaskType.REGRESSION:
@@ -300,7 +300,7 @@ def stability_experiments(cfg: DictConfig, predictions_dir: Path,
     probas_test: np.ndarray = torch.stack(outputs_test, dim=0).numpy()
 
     dist_axis = 2
-    if task_type == TaskType.LINK_PREDICTION:
+    if task_type == TaskType.LINK_PREDICTION or get_dataset_name(cfg) == 'qm9':
         dist_axis = 1
     avg_output_entropy = np.mean(entropy(probas_test, axis=dist_axis), axis=0)
 
