@@ -1,0 +1,25 @@
+defaults: # Default value of the arguments
+  - _self_
+  - optim: adam
+  - dataset: salicylic_acid
+  - model: resgatedgcn
+  - cka: fast  # 'fast' only computes CKA between corresponding layers, 'full' computes the full CKA matrix. Use cka.use_masks=[] to skip CKA computation altogether.
+
+seed: 0  # General seed used for almost everything
+datasplit_seed: 0  # Seed used for splitting datasets without public split
+keep_init_seed_constant: false  # Whether to keep the initialization constant over repeated runs
+keep_train_seed_constant: true  # Whether to keep the random factors during training, e.g., dropout patterns, fixed over runs
+
+cuda: 0  # Identifier of a GPU (0, 1, ...) or 'cpu'
+
+n_epochs: 500  # Maximal training epochs
+early_stopping: true  # Whether to use early stopping
+patience: 40  # After how many epochs without val_loss improvement to stop training
+n_repeat: 50  # Repetition of training/how many models are trained
+
+store_activations: false  # Whether to permanently store activations of trained models on disk
+data_root: dataset  # Absolute path to the data subdirectory or relative path from the project directory
+
+hydra:
+  job:
+    chdir: True # Flag specifying whether change runtime working directory to the job's output directory or not (doesn't affect dataset directories)
