@@ -8,10 +8,10 @@ log = logging.getLogger(__name__)
 
 def get_rsa_cos(features_x, features_y):
     """
-    get the mean absolute Procrustes coefficient for different features
+    get cos RSA coefficient for different features
     :param features_x: x features
     :param features_y: y features
-    :return: mean absolute value of CCA coefficient
+    :return: cos RSA coefficient
     """
     # noinspection PyProtectedMember
     try:
@@ -33,10 +33,10 @@ def get_rsa_cos(features_x, features_y):
 
 def get_rsa_corr(features_x, features_y):
     """
-    get the mean absolute Procrustes coefficient for different features
+    get corr RSA coefficient for different features
     :param features_x: x features
     :param features_y: y features
-    :return: mean absolute value of CCA coefficient
+    :return: corr RSA coefficient
     """
     rdms1 = rsatoolbox.rdm.calc_rdm(rsatoolbox.data.Dataset(features_x))
     rdms2 = rsatoolbox.rdm.calc_rdm(rsatoolbox.data.Dataset(features_y))
@@ -45,10 +45,10 @@ def get_rsa_corr(features_x, features_y):
 
 def get_rsa_corr_cov(features_x, features_y):
     """
-    get the mean absolute Procrustes coefficient for different features
+    get corr_cov RSA coefficient for different features
     :param features_x: x features
     :param features_y: y features
-    :return: mean absolute value of CCA coefficient
+    :return: corr_cov RSA coefficient
     """
     rdms1 = rsatoolbox.rdm.calc_rdm(rsatoolbox.data.Dataset(features_x))
     rdms2 = rsatoolbox.rdm.calc_rdm(rsatoolbox.data.Dataset(features_y))
@@ -57,10 +57,10 @@ def get_rsa_corr_cov(features_x, features_y):
 
 def get_rsa_tau_a(features_x, features_y):
     """
-    get the mean absolute Procrustes coefficient for different features
+    get tau_a RSA coefficient for different features
     :param features_x: x features
     :param features_y: y features
-    :return: mean absolute value of CCA coefficient
+    :return: tau_a RSA coefficient
     """
     rdms1 = rsatoolbox.rdm.calc_rdm(rsatoolbox.data.Dataset(features_x))
     rdms2 = rsatoolbox.rdm.calc_rdm(rsatoolbox.data.Dataset(features_y))
@@ -69,10 +69,10 @@ def get_rsa_tau_a(features_x, features_y):
 
 def get_rsa_rho_a(features_x, features_y):
     """
-    get the mean absolute Procrustes coefficient for different features
+    get the rho_a RSA coefficient for different features
     :param features_x: x features
     :param features_y: y features
-    :return: mean absolute value of CCA coefficient
+    :return:rho_a RSA coefficient
     """
     rdms1 = rsatoolbox.rdm.calc_rdm(rsatoolbox.data.Dataset(features_x))
     rdms2 = rsatoolbox.rdm.calc_rdm(rsatoolbox.data.Dataset(features_y))
