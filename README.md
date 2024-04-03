@@ -1,6 +1,6 @@
 # gnn-multistability
 
-Source code for model multiplicity of Graph Neural Networks in downstream tasks beyond node classification
+Source code for the "Model multiplicity of Graph Neural Networks in downstream tasks beyond node classification" master's thesis.
 
 sample usage for single run
 
